@@ -1,0 +1,69 @@
+-- tests/enum_test.kds - Enums with payloads and pattern matching
+
+enum Shape {
+    Circle(Float),
+    Rectangle(Float, Float),
+    Point
+}
+
+enum Color { Red, Green, Blue }
+enum Option { Some(Int), None }
+enum Result { OkVal(String), ErrVal(String) }
+
+-- area function using match
+fn area(sh: Shape) -> Float {
+    match sh {
+        Circle(r) => 3.14159 * r * r,
+        Rectangle(w, h) => w * h,
+        Point => 0.0
+    }
+}
+
+fn describe(c: Color) -> String {
+    match c {
+        Red => "warm",
+        Green => "natural",
+        Blue => "cool"
+    }
+}
+
+fn safe_div(a: Int, b: Int) -> Result {
+    if b == 0 { give ErrVal("div by zero") }
+    give OkVal(str(a / b))
+}
+
+fn unwrap_or(opt: Option, def: Int) -> Int {
+    match opt {
+        Some(n) => n,
+        None => def
+    }
+}
+
+-- Tests
+let c = Circle(5.0)
+let r = Rectangle(3.0, 4.0)
+let p = Point
+assert(area(c) > 78.5 && area(c) < 78.6, "circle area")
+assert(area(r) == 12.0, "rect area 3x4")
+assert(area(p) == 0.0, "point area 0")
+
+assert(describe(Red) == "warm", "red warm")
+assert(describe(Green) == "natural", "green natural")
+assert(describe(Blue) == "cool", "blue cool")
+
+let r1 = safe_div(10, 2)
+let r2 = safe_div(10, 0)
+let v1 = match r1 { OkVal(s) => s, ErrVal(_) => "err" }
+let v2 = match r2 { OkVal(_) => "ok", ErrVal(m) => m }
+assert(v1 == "5", "10/2 = 5")
+assert(v2 == "div by zero", "div by zero msg")
+
+let opt = Some(42)
+assert(unwrap_or(opt, 0) == 42, "some 42")
+assert(unwrap_or(None, -1) == -1, "none default")
+
+show "  [ok] enum variants with payload"
+show "  [ok] enum variants without payload"
+show "  [ok] enum pattern matching"
+show "  [ok] enum multi-payload tuples"
+show "=== enum tests passed ==="

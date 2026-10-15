@@ -654,7 +654,12 @@ static Expr* parse_primary(Parser* p) {
                 }
 
                 consume(p, TOK_FAT_ARROW, "expected '=>'");
-                Expr* body = parse_expr(p);
+                Expr* body;
+                if (is_at(p, TOK_LBRACE)) {
+                    body = parse_primary(p); // parse_block
+                } else {
+                    body = parse_expr(p);
+                }
                 e->as.match_e.arms[e->as.match_e.arm_count].pat = pat;
                 e->as.match_e.arms[e->as.match_e.arm_count].body = body;
                 e->as.match_e.arm_count++;

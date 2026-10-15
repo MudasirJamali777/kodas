@@ -951,18 +951,23 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
         }
         case STMT_ENUM: {
             const char* ename = stmt->as.enum_s.name;
-            // Register each variant as a constructor (both with and without payload)
+            // Register each variant
             for (int i = 0; i < stmt->as.enum_s.variants.count; i++) {
                 const char* var_name = stmt->as.enum_s.variants.items[i].name;
                 int nfields = stmt->as.enum_s.variants.items[i].fields.count;
-                // Build key "EnumName.VariantName"
-                char* full = (char*)kodas_malloc(strlen(ename) + strlen(var_name) + 2);
-                strcpy(full, ename); strcat(full, "."); strcat(full, var_name);
-                Value ctor = val_native(native_enum_variant_ctor, var_name, full);
-                // For Shape.Circle(...) style we need to register Shape too as type marker
-                env_define(env, var_name, ctor, false);
+                if (nfields == 0) {
+                    // No-payload variant: expose as a constant value (like a literal)
+                    Value v = val_enum_variant(ename, var_name, NULL);
+                    env_define(env, var_name, v, false);
+                } else {
+                    // Payload variant: expose as a native constructor function
+                    char* full = (char*)kodas_malloc(strlen(ename) + strlen(var_name) + 2);
+                    strcpy(full, ename); strcat(full, "."); strcat(full, var_name);
+                    Value ctor = val_native(native_enum_variant_ctor, var_name, full);
+                    env_define(env, var_name, ctor, false);
+                }
             }
-            // Also register the enum name as a type marker (matches struct behavior)
+            // Register enum name as a type marker (matches struct behavior)
             char* ename_copy = kodas_strdup(ename);
             env_define(env, ename, val_native(native_struct_ctor, ename, ename_copy), false);
             return val_null();
