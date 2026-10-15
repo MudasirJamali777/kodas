@@ -29,12 +29,12 @@
 - [ ] Compound assignments (+=, -=, etc.) - parser support added
 - [ ] Default parameters
 - [ ] Multiple return values (tuples)
-- [ ] Behave methods (full method dispatch)
+- [x] Behave methods (full method dispatch, self/mut self/static ctors)
 - [ ] Traits
-- [ ] Enums with payload
+- [x] Enums with payload (single + multi-payload, pattern matching)
 - [ ] Generics [T], [T: Trait]
-- [ ] maybe T + empty
-- [ ] |>, |?> pipe operators (parser support added, full eval pending)
+- [x] maybe T + empty (empty keyword + Option-style enum pattern matching)
+- [x] |>, |?> pipe operators (forward + error pipe with short-circuit)
 - [ ] otherwise / demand
 - [ ] flow / together / timeout concurrency
 - [ ] Channel[T]
@@ -46,7 +46,7 @@
 - [ ] Operator overloading
 - [ ] List/map/set comprehensions
 - [ ] Lambda short form with _
-- [ ] Field access and method calls - partially done
+- [x] Field access and method calls
 - [ ] Semantic analyzer (type checking)
 - [ ] Pattern exhaustiveness checking
 - [ ] GC (mark-and-sweep)
