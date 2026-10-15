@@ -1,0 +1,20 @@
+-- Fibonacci sequence in Kodas
+fn fib(n) {
+    if n <= 1 { give n }
+    give fib(n - 1) + fib(n - 2)
+}
+
+fn fib_iter(n) {
+    let mut a = 0
+    let mut b = 1
+    loop i in 0..n {
+        let tmp = a + b
+        a = b
+        b = tmp
+    }
+    give a
+}
+
+loop i in 0..15 {
+    show "fib({i}) = {fib(i)}"
+}

@@ -1,0 +1,25 @@
+-- core/iter.kds - Iterator utilities
+-- (Note: In the seed, iterators are just list transformations)
+
+fn map(list, f) => list.map(f)
+fn filter(list, f) => list.filter(f)
+fn for_each(list, f) {
+    loop item in list { f(item) }
+}
+fn fold(list, init, f) {
+    let mut acc = init
+    loop item in list { acc = f(acc, item) }
+    give acc
+}
+fn take(list, n) {
+    let r = []
+    let end = if n < list.len then n else list.len
+    loop i in 0..end { r.push(list[i]) }
+    give r
+}
+fn drop(list, n) {
+    let r = []
+    let start = if n > list.len then list.len else n
+    loop i in start..list.len { r.push(list[i]) }
+    give r
+}

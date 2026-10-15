@@ -1,0 +1,43 @@
+{
+  "name": "kodas-lang",
+  "displayName": "Kodas Language Support",
+  "description": "Language support for the Kodas programming language",
+  "version": "0.1.0",
+  "publisher": "mudasirjamali",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "kodas",
+        "aliases": ["Kodas", "kodas"],
+        "extensions": [".kds"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "kodas",
+        "scopeName": "source.kodas",
+        "path": "./syntaxes/kodas.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "kodas",
+        "path": "./snippets/kodas.json"
+      }
+    ]
+  },
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "typescript": "^5.0.0"
+  }
+}

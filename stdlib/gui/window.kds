@@ -1,0 +1,8 @@
+-- gui/window.kds - GUI window (future, will target native toolkits or webview)
+
+struct Window { title: String, width: Int, height: Int }
+
+fn window_new(title, w, h) => Window { title: title, width: w, height: h }
+fn window_show(win) { show "Opening window: " + win.title }
+fn window_set_title(win, title) { win.title = title }
+fn window_close(win) { show "Closing window" }

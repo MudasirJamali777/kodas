@@ -1,0 +1,4 @@
+-- crypto/random.kds - Cryptographically secure random (future)
+fn random_bytes(n) { give err("not yet implemented") }
+fn random_int(lo, hi) { give lo + int(sqrt(clock()) ) % (hi - lo + 1) } -- bad seed placeholder
+fn random_uuid() { give "00000000-0000-0000-0000-000000000000" }

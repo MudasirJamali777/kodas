@@ -1,0 +1,15 @@
+-- crypto/hash.kds - Cryptographic hashing (future; will use bridge C to OpenSSL/libsodium)
+-- These are placeholder implementations for API design; seed returns stubs
+
+fn sha256(data) {
+    give err("sha256 requires native crypto support (Phase 2+)")
+}
+fn sha512(data) {
+    give err("sha512 requires native crypto support")
+}
+fn md5(data) {
+    give err("md5 requires native crypto support")
+}
+fn blake2b(data) {
+    give err("blake2b requires native crypto support")
+}

@@ -1,0 +1,18 @@
+-- web/html.kds - HTML templating
+
+fn html_doc(title, body) => "<!DOCTYPE html><html><head><title>" + title + "</title></head><body>" + body + "</body></html>"
+
+fn h1(text) => "<h1>" + text + "</h1>"
+fn h2(text) => "<h2>" + text + "</h2>"
+fn h3(text) => "<h3>" + text + "</h3>"
+fn p(text) => "<p>" + text + "</p>"
+fn a(href, text) => "<a href=\"" + href + "\">" + text + "</a>"
+fn ul(items) {
+    let mut out = "<ul>"
+    loop item in items { out = out + "<li>" + item + "</li>" }
+    give out + "</ul>"
+}
+fn div(content, cls) => "<div class=\"" + cls + "\">" + content + "</div>"
+fn button(label, onclick) => "<button onclick=\"" + onclick + "\">" + label + "</button>"
+fn input_field(name, typ) => "<input name=\"" + name + "\" type=\"" + typ + "\">"
+fn form(content, action, method) => "<form action=\"" + action + "\" method=\"" + method + "\">" + content + "</form>"

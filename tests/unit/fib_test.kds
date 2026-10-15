@@ -1,0 +1,11 @@
+-- Fibonacci tests
+fn fib(n) {
+    if n <= 1 { give n }
+    give fib(n-1) + fib(n-2)
+}
+
+test "fib(0) = 0" { assert fib(0) == 0 }
+test "fib(1) = 1" { assert fib(1) == 1 }
+test "fib(10) = 55" { assert fib(10) == 55 }
+test "fib(20) = 6765" { assert fib(20) == 6765 }
+show "Fib tests passed!"

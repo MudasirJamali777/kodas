@@ -1,0 +1,25 @@
+-- concurrency/flow.kds - Flow concurrency system (future native support)
+--
+-- Usage:
+--   flow { let data = fetch("/url"); show data }
+--   let (a, b) = together {
+--       flow -> fetch("/a")
+--       flow -> fetch("/b")
+--   }
+
+fn flow(f) {
+    -- In seed, flow runs synchronously (no threads yet)
+    give f()
+}
+
+fn together(flows) {
+    -- Synchronous fallback
+    give flows.map(fn(f) => f())
+}
+
+fn flow_timeout(f, seconds, fallback) {
+    let start = clock()
+    let result = f()
+    if clock() - start > seconds { give fallback }
+    give result
+}

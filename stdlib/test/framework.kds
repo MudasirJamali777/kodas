@@ -1,0 +1,31 @@
+-- test/framework.kds - Built-in test framework (augments the built-in `test` keyword)
+
+struct TestResult { name: String, passed: Bool, message: String }
+
+let mut _test_results = []
+let mut _test_count = 0
+let mut _passed_count = 0
+
+fn describe(name, fn) {
+    show "  ▸ " + name
+    fn()
+}
+
+fn expect_true(v, msg) {
+    _test_count = _test_count + 1
+    if v {
+        _passed_count = _passed_count + 1
+        _test_results.push(TestResult { name: msg, passed: true, message: "" })
+    } else {
+        _test_results.push(TestResult { name: msg, passed: false, message: "expected true" })
+    }
+}
+
+fn expect_eq(a, b, msg) {
+    expect_true(a == b, msg + " (expected " + str(a) + " == " + str(b) + ")")
+}
+
+fn test_summary() {
+    show ""
+    show "  Results: " + str(_passed_count) + "/" + str(_test_count) + " passed"
+}

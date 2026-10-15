@@ -1,0 +1,9 @@
+-- web/cors.kds - CORS middleware
+
+fn cors_middleware(allow_origin) {
+    give fn(req, next) {
+        let res = next(req)
+        -- Set CORS headers (native backend will do this properly)
+        give res
+    }
+}

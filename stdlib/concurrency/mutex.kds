@@ -1,0 +1,12 @@
+-- concurrency/mutex.kds - Mutex and locks (future)
+
+struct Mutex { locked: Bool, owner: Int }
+
+fn mutex_new() => Mutex { locked: false, owner: 0 }
+fn mutex_lock(m) { m.locked = true }
+fn mutex_unlock(m) { m.locked = false }
+fn mutex_try_lock(m) {
+    if m.locked { give false }
+    m.locked = true
+    give true
+}

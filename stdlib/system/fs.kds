@@ -1,0 +1,15 @@
+-- system/fs.kds - Filesystem (complement to io/file)
+
+fn is_file(path) {
+    let r = read_file(path)
+    give r.is_ok
+}
+
+fn is_dir(path) => false -- placeholder
+fn mkdir(path) {}        -- placeholder
+fn rm(path) {}           -- placeholder
+fn cp(src, dst) {}       -- placeholder
+fn mv(src, dst) {}       -- placeholder
+fn ls(path) => []        -- placeholder
+fn cwd() => "/"          -- placeholder
+fn cd(path) {}           -- placeholder

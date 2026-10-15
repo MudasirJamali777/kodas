@@ -1,0 +1,29 @@
+-- core/types.kds - Core type extensions for Kodas standard library
+
+fn identity(x) => x
+
+fn is_null(x) => x == null
+fn is_int(x) => typename(x) == "Int"
+fn is_float(x) => typename(x) == "Float"
+fn is_bool(x) => typename(x) == "Bool"
+fn is_string(x) => typename(x) == "String"
+fn is_list(x) => typename(x) == "List"
+fn is_map(x) => typename(x) == "Map"
+fn is_function(x) => typename(x) == "Function"
+
+fn to_string(x) => str(x)
+fn to_int(x) => int(x)
+fn to_float(x) => float(x)
+
+-- Convert anything to a Bool
+fn to_bool(x) {
+    if is_null(x) { give false }
+    if is_bool(x) { give x }
+    if is_int(x) { give x != 0 }
+    if is_float(x) { give x != 0.0 }
+    if is_string(x) { give x != "" }
+    give true
+}
+
+test "identity returns value" { assert identity(42) == 42 }
+test "to_int converts" { assert to_int("123") == 123 }

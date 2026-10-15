@@ -1,0 +1,30 @@
+-- core/math.kds - Math utilities
+
+seal E = 2.718281828459045
+seal TAU = PI * 2.0
+seal DEG_TO_RAD = PI / 180.0
+seal RAD_TO_DEG = 180.0 / PI
+
+fn radians(deg) => deg * DEG_TO_RAD
+fn degrees(rad) => rad * RAD_TO_DEG
+
+fn tan(x) => sin(x) / cos(x)
+fn sign(x) {
+    if x > 0 { give 1 }
+    if x < 0 { give -1 }
+    give 0
+}
+
+fn clamp(x, lo, hi) {
+    if x < lo { give lo }
+    if x > hi { give hi }
+    give x
+}
+
+fn lerp(a, b, t) => a + (b - a) * t
+
+fn max2(a, b) => if a > b then a else b
+fn min2(a, b) => if a < b then a else b
+
+fn is_nan(x) => x != x  -- NaN is not equal to itself
+fn is_finite(x) => abs(x) < 1e308

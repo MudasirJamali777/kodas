@@ -1,0 +1,16 @@
+-- self/compiler/semantic.kds - Semantic analysis / type checker (in development)
+module compiler.semantic
+
+struct TypeError { message: String, line: Int }
+struct TypeEnv { parent: Object, types: List }
+
+fn type_check(program) {
+    let errors = []
+    -- Walk AST, checking types
+    give errors
+}
+
+fn check_expr(env, expr) {
+    -- Type inference and checking
+    give null
+}

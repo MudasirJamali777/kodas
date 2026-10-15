@@ -1,0 +1,45 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Kodas",
+  "scopeName": "source.kodas",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#functions" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-dash.kodas", "match": "--.*$" },
+        { "name": "comment.block.kodas", "begin": "---", "end": "---" }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        { "name": "string.quoted.double.kodas", "begin": "\"", "end": "\"", "patterns": [{ "name": "constant.character.escape.kodas", "match": "\\\\." }, { "name": "meta.interpolation.kodas", "begin": "\\{", "end": "\\}" }] },
+        { "name": "string.quoted.raw.kodas", "begin": "r\"", "end": "\"" }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        { "name": "constant.numeric.float.kodas", "match": "\\b[0-9]+\\.[0-9]+([eE][+-]?[0-9]+)?\\b" },
+        { "name": "constant.numeric.integer.kodas", "match": "\\b[0-9]+\\b" }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        { "name": "keyword.control.kodas", "match": "\\b(if|else|match|loop|while|in|stop|skip|give|return|then|otherwise|demand)\\b" },
+        { "name": "keyword.declaration.kodas", "match": "\\b(let|seal|fn|struct|enum|behave|trait|is|pub|module|import|type)\\b" },
+        { "name": "keyword.other.kodas", "match": "\\b(mut|true|false|maybe|empty|ok|err|flow|together|timeout|bridge|test|bench|assert|contract|as|new|self|op|where|never|any|for|use)\\b" },
+        { "name": "constant.language.kodas", "match": "\\b(Bool|Int|Float|String|Char|Byte|Result|Channel)\\b" }
+      ]
+    },
+    "functions": {
+      "patterns": [
+        { "name": "entity.name.function.kodas", "match": "\\bfn\\s+([a-zA-Z_][a-zA-Z0-9_]*)\\b", "captures": { "1": { "name": "entity.name.function.kodas" } } }
+      ]
+    }
+  }
+}

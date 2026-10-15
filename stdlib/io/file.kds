@@ -1,0 +1,27 @@
+-- io/file.kds - File I/O operations
+
+fn read_text(path) {
+    let result = read_file(path)
+    give result
+}
+
+fn write_text(path, content) {
+    give write_file(path, content)
+}
+
+fn append_text(path, content) {
+    let existing = read_file(path)
+    if existing.is_err { give write_file(path, content) }
+    give write_file(path, existing.unwrap() + content)
+}
+
+fn exists(path) {
+    let r = read_file(path)
+    give r.is_ok
+}
+
+fn read_lines(path) {
+    let r = read_file(path)
+    if r.is_err { give err(r.unwrap()) }
+    give ok(r.unwrap().lines())
+}

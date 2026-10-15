@@ -1,0 +1,14 @@
+-- system/os.kds - OS detection
+
+seal OS_LINUX = "linux"
+seal OS_MACOS = "macos"
+seal OS_WINDOWS = "windows"
+
+fn os_name() => "linux"   -- detected at runtime in native build
+fn os_arch() => "x86_64"
+fn os_is(s) => os_name() == s
+fn is_linux() => os_is(OS_LINUX)
+fn is_macos() => os_is(OS_MACOS)
+fn is_windows() => os_is(OS_WINDOWS)
+fn path_separator() => "/"
+fn line_ending() => "\n"

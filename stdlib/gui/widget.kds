@@ -1,0 +1,8 @@
+-- gui/widget.kds - GUI widgets (future)
+
+fn button(text, on_click) => "<button>" + text + "</button>"
+fn label(text) => "<label>" + text + "</label>"
+fn text_input(placeholder) => "<input placeholder=\"" + placeholder + "\">"
+fn checkbox(label, checked) => "<label><input type=checkbox>" + label + "</label>"
+fn vbox(children) => "<div class=vbox>" + children.join("") + "</div>"
+fn hbox(children) => "<div class=hbox>" + children.join("") + "</div>"

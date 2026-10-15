@@ -1,0 +1,17 @@
+-- test/property.kds - Property-based testing (future)
+
+fn for_all(gen, prop, iterations) {
+    loop i in 0..iterations {
+        let v = gen(i)
+        if !prop(v) {
+            show "  ✗ property failed on value: " + str(v)
+            give err("property failed")
+        }
+    }
+    show "  ✓ property passed for " + str(iterations) + " cases"
+    give ok(true)
+}
+
+fn gen_int_range(lo, hi) {
+    give fn(seed) => lo + (seed * 1664525 + 1013904223) % (hi - lo)
+}

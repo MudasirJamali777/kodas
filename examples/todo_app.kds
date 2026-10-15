@@ -1,0 +1,32 @@
+-- Todo app in Kodas (console version)
+
+struct Todo { id: Int, text: String, done: Bool }
+
+let mut todos = []
+let mut next_id = 1
+
+fn add_todo(text) {
+    todos.push(Todo { id: next_id, text: text, done: false })
+    next_id = next_id + 1
+}
+
+fn complete_todo(id) {
+    loop item in todos {
+        if item.id == id { item.done = true }
+    }
+}
+
+fn list_todos() {
+    show "--- Todos ---"
+    loop item in todos {
+        let mark = if item.done then "[x]" else "[ ]"
+        show "{mark} {item.id}: {item.text}"
+    }
+    show "-------------"
+}
+
+add_todo("Learn Kodas")
+add_todo("Build a project")
+add_todo("Ship it")
+complete_todo(1)
+list_todos()

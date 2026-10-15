@@ -1,0 +1,24 @@
+-- tools/linter.kds - Linter (style checks)
+-- kodas lint
+
+module linter
+
+struct LintWarning { message: String, line: Int, severity: String }
+
+fn lint(source) {
+    let warnings = []
+    let lines = source.lines()
+    let mut i = 0
+    loop line in lines {
+        -- Check for trailing whitespace
+        if line.len > 0 && line[line.len - 1] == " " {
+            warnings.push(LintWarning { message: "trailing whitespace", line: i, severity: "warn" })
+        }
+        -- Check for overly long lines
+        if line.len > 100 {
+            warnings.push(LintWarning { message: "line too long (" + str(line.len) + " chars)", line: i, severity: "warn" })
+        }
+        i = i + 1
+    }
+    give warnings
+}

@@ -1,0 +1,23 @@
+-- tools/docgen.kds - Documentation generator
+-- kodas doc
+-- Generates HTML documentation from /// doc comments.
+
+module docgen
+
+struct DocItem { kind: String, name: String, summary: String, details: String }
+
+fn parse_docs(source) {
+    let items = []
+    -- Extract /// comments and associate with following decl
+    give items
+}
+
+fn generate_html(items, output_dir) {
+    let mut index = "<!DOCTYPE html><html><head><title>Kodas Docs</title></head><body>"
+    index = index + "<h1>API Documentation</h1><ul>"
+    loop item in items {
+        index = index + "<li><b>" + item.name + "</b>: " + item.summary + "</li>"
+    }
+    index = index + "</ul></body></html>"
+    write_file(output_dir + "/index.html", index)
+}

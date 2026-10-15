@@ -1,0 +1,31 @@
+-- self/compiler/main.kds - Self-hosting compiler (in development)
+-- This will eventually replace the C seed compiler.
+-- Once complete:
+--   ./kodas build self/compiler/main.kds -o kodas2
+--   ./kodas2 build self/compiler/main.kds -o kodas3
+--   kodas2 and kodas3 must be bit-identical (self-hosting verified)
+
+-- Self-hosting plan:
+--   Phase A: Port lexer.kds - produce same tokens as C lexer
+--   Phase B: Port parser.kds - produce same AST
+--   Phase C: Port semantic.kds - type checking
+--   Phase D: Port codegen.kds - C backend (easiest to bootstrap)
+--   Phase E: Port eval.kds OR codegen LLVM/WASM
+
+module compiler.main
+
+import compiler.lexer
+import compiler.parser
+import compiler.ast
+import compiler.codegen
+
+fn main(args) {
+    if args.len < 2 {
+        show "Usage: kodas-compiler <command> <file>"
+        give 1
+    }
+    let command = args[1]
+    let file = args[2]
+    show "[self-hosted compiler] " + command + " " + file
+    give 0
+}

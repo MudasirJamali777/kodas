@@ -1,0 +1,7 @@
+-- kargo/src/publisher.kds - Package publisher
+module kargo.publisher
+
+fn publish(path) {
+    show "Publishing " + path + " to registry..."
+    give err("publishing not yet available")
+}

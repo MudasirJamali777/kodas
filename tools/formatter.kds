@@ -1,0 +1,41 @@
+-- tools/formatter.kds - Code formatter (opinionated like gofmt)
+-- kodas fmt
+--
+-- Rules:
+--   - 4-space indentation
+--   - Spaces around operators
+--   - No trailing whitespace
+--   - One blank line between top-level declarations
+--   - Opening brace on same line
+--   - Commas followed by space
+--   - Consistent line length (100 chars)
+
+module formatter
+
+fn format(source) {
+    let mut out = ""
+    let mut indent = 0
+    let lines = source.lines()
+    loop line in lines {
+        let trimmed = trim(line)
+        if trimmed == "" {
+            out = out + "\n"
+            continue
+        }
+        -- Adjust indent based on braces
+        let close_count = count_char(trimmed, "}")
+        indent = indent - close_count
+        -- Add indentation
+        loop _ in 0..indent { out = out + "    " }
+        out = out + trimmed + "\n"
+        let open_count = count_char(trimmed, "{")
+        indent = indent + open_count
+    }
+    give out
+}
+
+fn count_char(s, c) {
+    let mut n = 0
+    loop ch in chars(s) { if ch == c { n = n + 1 } }
+    give n
+}

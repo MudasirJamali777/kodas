@@ -1,0 +1,33 @@
+# Build artifacts
+seed/kodas
+seed/kodas.exe
+seed/*.o
+seed/src/*.o
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+build/
+dist/
+out/
+target/
+node_modules/
+
+# Temp files
+*.tmp
+*.log

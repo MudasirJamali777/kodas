@@ -1,0 +1,46 @@
+-- Conway's Game of Life in Kodas
+-- (Full implementation requires terminal control; this shows the core logic)
+
+fn count_neighbors(grid, x, y, w, h) {
+    let mut count = 0
+    loop dy in -1..2 {
+        loop dx in -1..2 {
+            if dx == 0 && dy == 0 { skip }
+            let nx = x + dx
+            let ny = y + dy
+            if nx >= 0 && nx < w && ny >= 0 && ny < h {
+                if grid[ny * w + nx] == 1 { count = count + 1 }
+            }
+        }
+    }
+    give count
+}
+
+fn step(grid, w, h) {
+    let next = []
+    loop y in 0..h {
+        loop x in 0..w {
+            let n = count_neighbors(grid, x, y, w, h)
+            let alive = grid[y * w + x] == 1
+            let new_state = if alive then (n == 2 || n == 3) else (n == 3)
+            next.push(if new_state then 1 else 0)
+        }
+    }
+    give next
+}
+
+-- Glider pattern
+let W = 10
+let H = 10
+let mut grid = []
+loop i in 0..(W*H) { grid.push(0) }
+grid[1] = 1
+grid[W + 2] = 1
+grid[2*W] = 1; grid[2*W + 1] = 1; grid[2*W + 2] = 1
+
+show "Game of Life initialized (glider pattern)"
+show "Running 10 generations..."
+loop gen in 0..10 {
+    grid = step(grid, W, H)
+}
+show "Simulation complete."

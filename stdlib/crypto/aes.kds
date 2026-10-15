@@ -1,0 +1,3 @@
+-- crypto/aes.kds - AES encryption (future)
+fn aes_encrypt(data, key) { give err("not yet implemented") }
+fn aes_decrypt(data, key) { give err("not yet implemented") }

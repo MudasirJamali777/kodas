@@ -1,0 +1,30 @@
+-- self/compiler/parser.kds - Self-hosted parser (in development)
+module compiler.parser
+
+import compiler.lexer
+import compiler.ast
+
+struct Parser { tokens: List, pos: Int }
+
+fn parser_new(tokens) => Parser { tokens: tokens, pos: 0 }
+
+fn parser_peek(p) => p.tokens[p.pos]
+fn parser_advance(p) {
+    let t = p.tokens[p.pos]
+    p.pos = p.pos + 1
+    give t
+}
+
+fn parse_program(p) {
+    let stmts = []
+    loop while p.pos < p.tokens.len {
+        -- Parse statements (full implementation coming)
+        parser_advance(p)
+    }
+    give ast.Program { stmts: stmts }
+}
+
+fn parse(tokens) {
+    let p = parser_new(tokens)
+    give parse_program(p)
+}

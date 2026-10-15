@@ -1,0 +1,52 @@
+{
+  "function": {
+    "prefix": "fn",
+    "body": ["fn ${1:name}(${2:params}) {", "    ${3:body}", "}"],
+    "description": "Function declaration"
+  },
+  "let": {
+    "prefix": "let",
+    "body": ["let ${1:name} = ${0:value}"],
+    "description": "Let binding"
+  },
+  "seal": {
+    "prefix": "seal",
+    "body": ["seal ${1:NAME} = ${0:value}"],
+    "description": "Constant declaration"
+  },
+  "struct": {
+    "prefix": "struct",
+    "body": ["struct ${1:Name} {", "    ${2:field}: ${3:Type}", "}"],
+    "description": "Struct declaration"
+  },
+  "if": {
+    "prefix": "if",
+    "body": ["if ${1:cond} {", "    ${0}", "}"],
+    "description": "If statement"
+  },
+  "if else": {
+    "prefix": "ife",
+    "body": ["if ${1:cond} {", "    ${2}", "} else {", "    ${0}", "}"],
+    "description": "If/else statement"
+  },
+  "loop": {
+    "prefix": "loop",
+    "body": ["loop ${1:var} in ${2:iter} {", "    ${0}", "}"],
+    "description": "For loop"
+  },
+  "test": {
+    "prefix": "test",
+    "body": ["test \"${1:name}\" {", "    assert ${0:condition}", "}"],
+    "description": "Test block"
+  },
+  "match": {
+    "prefix": "match",
+    "body": ["match ${1:value} {", "    ${2:pattern} => ${3:result}", "    _ => ${0:other}", "}"],
+    "description": "Match expression"
+  },
+  "fn arrow": {
+    "prefix": "fn=>",
+    "body": ["fn ${1:name}(${2:params}) => ${0:body}"],
+    "description": "Arrow function"
+  }
+}

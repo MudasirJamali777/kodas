@@ -1,0 +1,25 @@
+-- web/json.kds - JSON parsing and serialization (basic)
+
+fn json_stringify(value) => str(value)
+
+fn json_parse(s) {
+    -- Seed: very simplified parser, returns string/number/list/map
+    if s.starts_with("{") { give ok(parse_map(s)) }
+    if s.starts_with("[") { give ok(parse_list(s)) }
+    if s.starts_with("\"") { give ok(parse_str(s)) }
+    give ok(parse_num(s))
+}
+
+fn parse_str(s) {
+    -- Remove quotes and unescape
+    give s.trim().substring(1, s.len - 1)
+}
+
+fn parse_num(s) {
+    let t = s.trim()
+    if t.contains(".") { give float(t) }
+    give int(t)
+}
+
+fn parse_list(s) => []
+fn parse_map(s) => {}

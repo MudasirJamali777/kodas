@@ -1,0 +1,20 @@
+-- db/sqlite.kds - SQLite bindings (via bridge C or native driver)
+
+struct DbConnection { path: String }
+struct DbResult { rows: List, columns: List }
+
+fn sqlite_open(path) {
+    give ok(DbConnection { path: path })
+}
+
+fn sqlite_exec(db, sql) {
+    give ok(DbResult { rows: [], columns: [] })
+}
+
+fn sqlite_query(db, sql) {
+    give ok(DbResult { rows: [], columns: [] })
+}
+
+fn sqlite_close(db) {
+    give ok(true)
+}

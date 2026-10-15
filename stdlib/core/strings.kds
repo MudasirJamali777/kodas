@@ -1,0 +1,27 @@
+-- core/strings.kds - String utilities
+
+fn is_empty(s) => s.len == 0
+fn is_not_empty(s) => s.len > 0
+
+fn to_upper(s) => s  -- TODO: full impl
+fn to_lower(s) => s  -- TODO: full impl
+
+fn repeat(s, n) => s * n
+
+fn join(list, sep) {
+    if list.len == 0 { give "" }
+    let mut result = str(list[0])
+    loop i in 1..list.len {
+        result = result + sep + str(list[i])
+    }
+    give result
+}
+
+fn lines(s) => s.lines()
+fn chars(s) => s.chars()
+fn split(s, sep) => s.split(sep)
+fn trim(s) => s.trim()
+fn contains(s, sub) => s.contains(sub)
+fn starts_with(s, prefix) => s.starts_with(prefix)
+fn ends_with(s, suffix) => s.ends_with(suffix)
+fn replace(s, from, to) => s.replace(from, to)

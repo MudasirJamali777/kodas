@@ -1,0 +1,14 @@
+-- io/net.kds - Networking (future)
+-- This module will provide TCP/UDP clients and servers.
+-- Planned API:
+--   tcp_connect(host, port) -> Socket
+--   tcp_listen(port, handler)
+--   http_get(url) -> Result[Response, Error]
+
+fn http_get(url) {
+    give err("networking not yet available in seed interpreter")
+}
+
+fn http_post(url, body) {
+    give err("networking not yet available in seed interpreter")
+}

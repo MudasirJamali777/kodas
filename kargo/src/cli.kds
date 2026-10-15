@@ -1,0 +1,37 @@
+-- kargo/src/cli.kds - Kargo package manager CLI
+module kargo.cli
+
+-- Usage:
+--   kargo init <name>
+--   kargo add <package>
+--   kargo install
+--   kargo build
+--   kargo publish
+--   kargo search <q>
+
+struct KargoConfig { name: String, version: String, deps: List }
+
+fn kargo_init(name) {
+    show "Initializing new Kargo project: " + name
+    -- Create kargo.toml, src/main.kds, etc.
+    write_file("kargo.toml", "[project]\nname = \"" + name + "\"\nversion = \"0.1.0\"\n")
+    write_file("src/main.kds", "fn main() {\n    show \"Hello from " + name + "!\"\n}\n")
+    show "  ✓ Project initialized"
+}
+
+fn kargo_add(pkg) {
+    show "Adding dependency: " + pkg
+    -- Update kargo.toml
+}
+
+fn kargo_install() {
+    show "Installing dependencies..."
+}
+
+fn kargo_publish() {
+    show "Publishing to registry..."
+}
+
+fn kargo_search(q) {
+    show "Searching for: " + q
+}

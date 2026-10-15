@@ -1,0 +1,3 @@
+-- crypto/bcrypt.kds - Password hashing (future)
+fn hash_password(password, cost) { give err("not yet implemented") }
+fn verify_password(password, hash) { give err("not yet implemented") }

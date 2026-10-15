@@ -1,0 +1,16 @@
+-- io/stdio.kds - Standard I/O
+
+fn print_line(s) => show(s)
+fn print_str(s) => print(s)
+
+fn read_line() => input("")
+fn prompt(msg) => input(msg)
+
+fn eprint(s) {
+    -- Print to stderr (delegates to show in seed; native backend writes to stderr)
+    show s
+}
+
+fn eprintln(s) {
+    show s
+}

@@ -1,0 +1,13 @@
+-- system/process.kds - Process management
+
+fn exec(command) {
+    give err("process execution requires native bridge")
+}
+
+fn spawn(command) {
+    give err("spawn requires native support")
+}
+
+fn exit(code) { builtin_exit(code) }
+fn get_pid() => 0
+fn get_cwd() => "/"

@@ -1,0 +1,14 @@
+-- core/result.kds - Result type utilities
+
+fn is_ok(r) => !r.is_err
+fn is_err(r) => r.is_err
+fn unwrap(r) => r.unwrap()
+fn unwrap_or(r, default) => if r.is_err then default else r.unwrap()
+fn map_ok(r, f) {
+    if r.is_err { give r }
+    give ok(f(r.unwrap()))
+}
+fn map_err(r, f) {
+    if r.is_err { give err(f(r.unwrap())) }
+    give r
+}

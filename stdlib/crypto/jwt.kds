@@ -1,0 +1,4 @@
+-- crypto/jwt.kds - JSON Web Tokens (future)
+fn jwt_sign(payload, secret) { give err("not yet implemented") }
+fn jwt_verify(token, secret) { give err("not yet implemented") }
+fn jwt_decode(token) { give err("not yet implemented") }

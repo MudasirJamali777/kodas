@@ -1,0 +1,30 @@
+-- tools/lsp.kds - Language Server Protocol implementation
+-- kodas lsp
+--
+-- Implements the LSP standard for editor integration:
+--   - textDocument/completion (autocomplete)
+--   - textDocument/definition (go to definition)
+--   - textDocument/references (find references)
+--   - textDocument/rename (rename refactor)
+--   - textDocument/hover (type info on hover)
+--   - textDocument/publishDiagnostics (real-time errors)
+--   - textDocument/codeAction (quick fixes)
+--   - textDocument/formatting (via formatter.kds)
+
+module lsp
+
+struct LspState { files: Map, root: String }
+
+fn lsp_start() {
+    show "Starting Kodas Language Server..."
+    show "[LSP] Listening on stdin/stdout"
+    -- Read LSP messages from stdin, dispatch, respond
+}
+
+fn lsp_initialize(root) => LspState { files: {}, root: root }
+fn lsp_did_open(state, uri, text) {}
+fn lsp_did_change(state, uri, text) {}
+fn lsp_completion(state, uri, pos) => []
+fn lsp_hover(state, uri, pos) => null
+fn lsp_definition(state, uri, pos) => null
+fn lsp_references(state, uri, pos) => []

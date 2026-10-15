@@ -1,0 +1,14 @@
+-- self/compiler/codegen.kds - Code generation (in development)
+-- Targets: C (for bootstrapping), LLVM IR, WASM, JavaScript
+
+module compiler.codegen
+
+fn codegen_c(program) => "#include <stdio.h>\nint main() { printf(\"Hello from self-hosted Kodas!\\n\"); return 0; }"
+
+fn codegen_llvm(program) => "; ModuleID = 'kodas'\ndefine i32 @main() { ret i32 0 }"
+
+fn emit(program, target) {
+    if target == "c" { give codegen_c(program) }
+    if target == "llvm" { give codegen_llvm(program) }
+    give "unknown target"
+}

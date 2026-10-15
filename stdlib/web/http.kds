@@ -1,0 +1,35 @@
+-- web/http.kds - Built-in web framework
+--
+-- Usage (planned for 1.0):
+--   import web
+--   web.app {
+--       get "/" fn(req) => html "<h1>Hello</h1>"
+--       get "/api/users" fn(req) => json(users)
+--       post "/api/users" fn(req) => { ... }
+--       listen 3000
+--   }
+
+struct Request { method: String, path: String, body: String, headers: List }
+struct Response { status: Int, body: String, headers: List }
+
+fn response(status, body) => Response { status: status, body: body, headers: [] }
+fn html(content) => response(200, content)
+fn json(data) => response(200, str(data))
+fn text(content) => response(200, content)
+fn not_found() => response(404, "Not Found")
+fn server_error(msg) => response(500, msg)
+
+fn status(res, code) {
+    res.status = code
+    give res
+}
+
+-- Middleware
+fn logger(req, next) {
+    show "{req.method} {req.path}"
+    give next(req)
+}
+
+fn cors(req, next) {
+    give next(req)
+}

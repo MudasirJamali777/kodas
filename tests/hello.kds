@@ -1,0 +1,4 @@
+-- Hello, World! in Kodas
+let name = "World"
+show "Hello, {name}!"
+show "Kodas language is alive!"

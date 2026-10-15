@@ -1,0 +1,36 @@
+{
+  "version": 3,
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "intelliSenseMode": "windows-msvc-x64",
+      "compilerPath": "cl.exe",
+      "cStandard": "c11",
+      "cppStandard": "c++17",
+      "includePath": [
+        "${workspaceRoot}\\seed\\src",
+        "${workspaceRoot}\\seed\\src\\**"
+      ],
+      "defines": [
+        "_DEBUG",
+        "_CRT_SECURE_NO_WARNINGS",
+        "WIN32_LEAN_AND_MEAN"
+      ],
+      "compilerSwitches": "/std:c11 /O2 /D_CRT_SECURE_NO_WARNINGS"
+    },
+    {
+      "name": "x64-Release",
+      "intelliSenseMode": "windows-msvc-x64",
+      "compilerPath": "cl.exe",
+      "cStandard": "c11",
+      "includePath": [
+        "${workspaceRoot}\\seed\\src"
+      ],
+      "defines": [
+        "NDEBUG",
+        "_CRT_SECURE_NO_WARNINGS",
+        "WIN32_LEAN_AND_MEAN"
+      ]
+    }
+  ]
+}

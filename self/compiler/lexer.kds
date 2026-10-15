@@ -1,0 +1,37 @@
+-- self/compiler/lexer.kds - Self-hosted lexer (in development)
+
+module compiler.lexer
+
+struct Token { kind: String, value: String, line: Int, col: Int }
+struct Lexer { source: String, pos: Int, line: Int, col: Int }
+
+fn lexer_new(source) => Lexer { source: source, pos: 0, line: 1, col: 1 }
+
+fn is_digit(c) => c >= "0" && c <= "9"
+fn is_alpha(c) => (c >= "a" && c <= "z") || (c >= "A" && c <= "Z") || c == "_"
+fn is_alnum(c) => is_alpha(c) || is_digit(c)
+
+fn lexer_next(lex) {
+    -- Skip whitespace
+    loop while lex.pos < lex.source.len && (lex.source[lex.pos] == " " || lex.source[lex.pos] == "\t") {
+        lex.pos = lex.pos + 1
+        lex.col = lex.col + 1
+    }
+    if lex.pos >= lex.source.len {
+        give Token { kind: "EOF", value: "", line: lex.line, col: lex.col }
+    }
+    let c = lex.source[lex.pos]
+    -- TODO: full lexer port
+    give Token { kind: "IDENT", value: c, line: lex.line, col: lex.col }
+}
+
+fn tokenize(source) {
+    let lex = lexer_new(source)
+    let tokens = []
+    loop {
+        let t = lexer_next(lex)
+        tokens.push(t)
+        if t.kind == "EOF" { stop }
+    }
+    give tokens
+}

@@ -1,0 +1,7 @@
+-- kargo/src/registry.kds - Package registry client
+module kargo.registry
+
+fn registry_url() => "https://packages.kodaslang.org"
+fn registry_fetch(pkg) => err("registry access requires network support (Phase 4+)")
+fn registry_publish(pkg, version) => err("publishing not yet available")
+fn registry_search(q) => []

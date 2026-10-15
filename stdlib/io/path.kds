@@ -1,0 +1,30 @@
+-- io/path.kds - Path manipulation
+
+fn join(a, b) {
+    if a.ends_with("/") { give a + b }
+    give a + "/" + b
+}
+
+fn basename(p) {
+    let parts = p.split("/")
+    give parts[parts.len - 1]
+}
+
+fn dirname(p) {
+    let parts = p.split("/")
+    if parts.len <= 1 { give "." }
+    let mut result = parts[0]
+    loop i in 1..(parts.len - 1) {
+        result = result + "/" + parts[i]
+    }
+    give result
+}
+
+fn extension(p) {
+    let name = basename(p)
+    let parts = name.split(".")
+    if parts.len <= 1 { give "" }
+    give parts[parts.len - 1]
+}
+
+fn is_absolute(p) => p.starts_with("/")

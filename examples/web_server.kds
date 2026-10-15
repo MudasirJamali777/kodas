@@ -1,0 +1,14 @@
+-- Example: Simple web server (future Kodas, documented for reference)
+-- Once web framework is implemented in stdlib/web/
+
+-- import web
+--
+-- web.app {
+--     get "/" fn(req) => html "<h1>Hello from Kodas!</h1>"
+--     get "/api/greet" fn(req) => json({"message": "Hello, World!"})
+--     listen 3000
+-- }
+
+show "Web server example (coming soon!)"
+show "Kodas will ship with a built-in web framework:"
+show "  web.app { get \"/\" fn(req) => html \"<h1>Hi</h1>\"; listen 3000 }"

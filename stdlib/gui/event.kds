@@ -1,0 +1,13 @@
+-- gui/event.kds - Event handling (future)
+
+struct Event { kind: String, target: String, data: String }
+
+fn on_click(widget, handler) {
+    -- Placeholder
+}
+fn on_input(widget, handler) {
+    -- Placeholder
+}
+fn on_key(key, handler) {
+    -- Placeholder
+}

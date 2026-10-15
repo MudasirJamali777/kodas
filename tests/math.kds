@@ -1,0 +1,16 @@
+-- Math tests in Kodas
+let a = 10
+let b = 3
+
+show "a = {a}, b = {b}"
+show "a + b = {a + b}"
+show "a - b = {a - b}"
+show "a * b = {a * b}"
+show "a / b = {a / b}"
+show "a % b = {a % b}"
+show "a == b: {a == b}"
+show "a > b: {a > b}"
+
+let radius = 5.0
+let area = PI * radius * radius
+show "Area of circle r=5: {area}"

@@ -1,0 +1,11 @@
+-- kargo/src/installer.kds - Package installer
+module kargo.installer
+
+fn install_pkg(name, version) {
+    show "Installing " + name + "@" + version
+    -- Download and extract to .kargo/
+}
+
+fn install_all(resolved) {
+    loop dep in resolved { install_pkg(dep.name, dep.version) }
+}

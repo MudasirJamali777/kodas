@@ -1,0 +1,11 @@
+-- kargo/src/resolver.kds - Dependency resolver
+module kargo.resolver
+
+struct DepNode { name: String, version: String, deps: List }
+
+fn resolve(deps) {
+    -- Resolve dependency graph, handle versions
+    let resolved = []
+    loop dep in deps { resolved.push(dep) }
+    give resolved
+}

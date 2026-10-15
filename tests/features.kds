@@ -1,0 +1,137 @@
+-- Kodas Feature Test Suite
+
+-- Variables and constants
+let name = "Alice"
+let mut age = 30
+seal GREETING = "Hello"
+age = age + 1
+show "{GREETING}, {name}! You are {age}."
+
+-- Functions
+fn greet(name) => "Hi, {name}!"
+fn add(a, b) => a + b
+fn factorial(n) {
+    if n <= 1 { give 1 }
+    give n * factorial(n - 1)
+}
+
+show greet("World")
+show "add(3, 4) = {add(3, 4)}"
+show "factorial(10) = {factorial(10)}"
+
+-- If/else
+let x = 15
+let status = if x >= 18 then "adult" else "minor"
+show "status: {status}"
+
+if x > 10 {
+    show "x is greater than 10"
+} else {
+    show "x is <= 10"
+}
+
+-- Lists
+let numbers = [1, 2, 3, 4, 5, 6]
+show "numbers: {numbers}"
+show "numbers.len = {numbers.len}"
+let doubled = numbers.map(fn(n) => n * 2)
+show "doubled: {doubled}"
+let evens = numbers.filter(fn(n) => n % 2 == 0)
+show "evens: {evens}"
+
+-- Ranges
+let r = 1..5
+show "range 1..5: {r}"
+
+-- Loops
+let mut sum = 0
+loop i in r {
+    sum = sum + i
+}
+show "sum of 1..5 = {sum}"
+
+let items = ["a", "b", "c"]
+loop item in items {
+    show "item: {item}"
+}
+
+loop 3 { show "repeat!" }
+
+-- While loop
+let mut n = 0
+loop while n < 3 {
+    show "while n = {n}"
+    n = n + 1
+}
+
+-- Match
+let v = 2
+let res = match v {
+    1 => "one"
+    2 => "two"
+    3 => "three"
+    _ => "other"
+}
+show "match result: {res}"
+
+-- Structs
+struct Point { x: Float, y: Float }
+let p1 = Point { x: 1.0, y: 2.0 }
+let p2 = Point { x: 3.0, y: 4.0 }
+show "p1: ({p1.x}, {p1.y})"
+show "p2: ({p2.x}, {p2.y})"
+
+-- Error handling with ok/err
+fn safe_div(a, b) {
+    if b == 0 { give err("division by zero") }
+    give ok(a / b)
+}
+let r1 = safe_div(10, 2)
+let r2 = safe_div(10, 0)
+show "safe_div(10,2) = {r1}"
+show "safe_div(10,0) = {r2}"
+
+-- Floats & math
+let radius = 5.0
+let circle_area = PI * radius * radius
+show "circle area: {circle_area}"
+show "sqrt(16) = {sqrt(16.0)}"
+
+-- String interpolation depth
+let greeting = "Hello"
+let target = "Kodas"
+show "{greeting}, {target}!"
+
+-- Arrow functions with multiple params
+let multiply = fn(a, b) => a * b
+show "multiply(6,7) = {multiply(6, 7)}"
+
+-- Built-in tests
+test "addition works" {
+    assert 2 + 2 == 4
+}
+
+test "string concat" {
+    assert "Hello" + " World" == "Hello World"
+}
+
+test "factorial of 5" {
+    assert factorial(5) == 120
+}
+
+test "list creation" {
+    let l = [1, 2, 3, 4, 5]
+    assert l.len == 5
+}
+
+test "range length" {
+    let rr = 1..10
+    assert rr.len == 9
+}
+
+test "if expression" {
+    let z = if true then 1 else 0
+    assert z == 1
+}
+
+show "=== All Kodas features working! ==="

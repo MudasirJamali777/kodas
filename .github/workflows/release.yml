@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cd seed
+          gcc -I src -std=c11 -O2 -D_POSIX_C_SOURCE=200809L src/*.c -o kodas-linux-x64 -lm
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            seed/kodas-linux-x64

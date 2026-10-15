@@ -1,0 +1,18 @@
+-- concurrency/pool.kds - Flow pool / thread pool (future)
+
+struct FlowPool { workers: Int, tasks: List }
+
+fn pool_new(workers) => FlowPool { workers: workers, tasks: [] }
+
+fn pool_run(pool, task) { pool.tasks.push(task) }
+
+fn pool_wait_all(pool) {
+    loop task in pool.tasks { task() }
+    pool.tasks = []
+}
+
+fn pool_map(pool, items, f) {
+    let results = []
+    loop item in items { results.push(f(item)) }
+    give results
+}

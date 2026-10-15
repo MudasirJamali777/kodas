@@ -1,0 +1,28 @@
+-- concurrency/channel.kds - Channels (future native support)
+-- Channels provide CSP-style communication between flows.
+--
+-- Usage:
+--   let ch = Channel[String].new()
+--   flow { ch.send("hi") }
+--   let msg = ch.receive()
+
+struct Channel { buffer: List, closed: Bool }
+
+fn channel_new() => Channel { buffer: [], closed: false }
+
+fn channel_send(ch, value) {
+    ch.buffer.push(value)
+}
+
+fn channel_receive(ch) {
+    if ch.buffer.len == 0 { give empty }
+    let v = ch.buffer[0]
+    -- Remove first element (shift)
+    let mut new_buf = []
+    loop i in 1..ch.buffer.len { new_buf.push(ch.buffer[i]) }
+    ch.buffer = new_buf
+    give v
+}
+
+fn channel_close(ch) { ch.closed = true }
+fn channel_len(ch) => ch.buffer.len

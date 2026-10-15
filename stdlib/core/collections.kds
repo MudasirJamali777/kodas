@@ -1,0 +1,84 @@
+-- core/collections.kds - Collection utilities
+
+-- Create a range from start to end (exclusive)
+fn range(start, end) => builtin_range(start, end)
+
+-- Sum all numbers in a list
+fn sum(list) {
+    let mut s = 0
+    loop item in list { s = s + item }
+    give s
+}
+
+-- Product of all numbers in a list
+fn product(list) {
+    let mut p = 1
+    loop item in list { p = p * item }
+    give p
+}
+
+-- Find maximum value in a list
+fn max(list) {
+    if list.len == 0 { give err("empty list") }
+    let mut best = list[0]
+    loop i in 1..list.len {
+        if list[i] > best { best = list[i] }
+    }
+    give ok(best)
+}
+
+-- Find minimum value in a list
+fn min(list) {
+    if list.len == 0 { give err("empty list") }
+    let mut best = list[0]
+    loop i in 1..list.len {
+        if list[i] < best { best = list[i] }
+    }
+    give ok(best)
+}
+
+-- Check if all elements satisfy predicate
+fn all(list, pred) {
+    loop item in list {
+        if !pred(item) { give false }
+    }
+    give true
+}
+
+-- Check if any element satisfies predicate
+fn any(list, pred) {
+    loop item in list {
+        if pred(item) { give true }
+    }
+    give false
+}
+
+-- Reverse a list
+fn reverse(list) {
+    let mut result = []
+    let mut i = list.len - 1
+    loop while i >= 0 {
+        result.push(list[i])
+        i = i - 1
+    }
+    give result
+}
+
+-- Zip two lists into a list of tuples
+fn zip(a, b) {
+    let result = []
+    let n = if a.len < b.len then a.len else b.len
+    loop i in 0..n {
+        result.push((a[i], b[i]))
+    }
+    give result
+}
+
+-- Enumerate: returns list of (index, item) tuples
+fn enumerate(list) {
+    let result = []
+    loop i, item in list {
+        result.push((i, item))
+    }
+    give result
+}

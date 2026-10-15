@@ -1,0 +1,4 @@
+-- db/mongo.kds - MongoDB client (future)
+fn mongo_connect(uri) { give err("not yet implemented") }
+fn mongo_find(db, col, query) { give err("not yet implemented") }
+fn mongo_insert(db, col, doc) { give err("not yet implemented") }

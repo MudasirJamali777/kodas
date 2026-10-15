@@ -1,0 +1,34 @@
+-- tools/repl.kds - Enhanced interactive REPL
+-- kodas repl
+--
+-- Features (planned):
+--   - Syntax highlighting
+--   - Tab completion
+--   - Multi-line input
+--   - History (up/down arrows)
+--   - Type hints
+--   - Special commands: .help, .type, .tokens, .ast, .quit
+
+module repl
+
+fn repl_start() {
+    show "Kodas enhanced REPL"
+    show "Type .help for help, .quit to exit"
+    loop {
+        let line = input("  ")
+        if line == ".quit" || line == "exit" { stop }
+        if line == ".help" { show_repl_help(); skip }
+        -- Evaluate line (delegates to core eval in native build)
+        show line
+    }
+}
+
+fn show_repl_help() {
+    show "Commands:"
+    show "  .help    Show this help"
+    show "  .quit    Exit REPL"
+    show "  .type    Show type of expression"
+    show "  .tokens  Show tokens"
+    show "  .ast     Show AST"
+    show "  .clear   Clear screen"
+}

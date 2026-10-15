@@ -1,0 +1,18 @@
+-- db/query.kds - Query builder
+
+struct Query { table: String, selects: List, wheres: List, limits: Int, order_bys: List }
+
+fn query_from(table) => Query { table: table, selects: ["*"], wheres: [], limits: 0, order_bys: [] }
+
+fn query_select(q, cols) { q.selects = cols; give q }
+fn query_where(q, cond) { q.wheres.push(cond); give q }
+fn query_limit(q, n) { q.limits = n; give q }
+fn query_order(q, col, dir) { q.order_bys.push(col + " " + dir); give q }
+
+fn query_to_sql(q) {
+    let mut sql = "SELECT " + q.selects.join(", ") + " FROM " + q.table
+    if q.wheres.len > 0 { sql = sql + " WHERE " + q.wheres.join(" AND ") }
+    if q.order_bys.len > 0 { sql = sql + " ORDER BY " + q.order_bys.join(", ") }
+    if q.limits > 0 { sql = sql + " LIMIT " + str(q.limits) }
+    give sql
+}

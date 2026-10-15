@@ -1,0 +1,9 @@
+-- test/bench.kds - Benchmarking helpers
+
+fn bench_run(name, f, iterations) {
+    let start = clock()
+    loop i in 0..iterations { f() }
+    let elapsed = clock() - start
+    let per_op = elapsed / iterations * 1_000_000_000
+    show "  bench " + name + ": " + str(iterations) + " iters, " + str(elapsed) + "s total, " + str(int(per_op)) + "ns/op"
+}

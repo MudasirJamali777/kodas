@@ -1,0 +1,21 @@
+-- Example: Chat server (planned - uses web framework)
+-- import web
+--
+-- let clients = []
+--
+-- web.app {
+--     ws "/chat" fn(socket) {
+--         clients.push(socket)
+--         socket.on_message fn(msg) {
+--             loop c in clients { c.send(msg) }
+--         }
+--     }
+--     serve_static "/" from "./public"
+--     listen 3000
+-- }
+
+show "Chat server example (coming when web framework is complete)"
+show "Architecture:"
+show "  - WebSocket endpoint /chat"
+show "  - Broadcast to all connected clients"
+show "  - Static file serving for HTML client"

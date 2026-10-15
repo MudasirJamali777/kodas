@@ -1,0 +1,15 @@
+-- self/compiler/ast.kds - AST node definitions (in development)
+module compiler.ast
+
+struct Program { stmts: List }
+struct FnDecl { name: String, params: List, ret_type: String, body: Object }
+struct LetDecl { name: String, value: Object, is_mut: Bool }
+struct BinaryExpr { op: String, left: Object, right: Object }
+struct IntLit { value: Int }
+struct StringLit { value: String }
+struct Ident { name: String }
+struct CallExpr { callee: Object, args: List }
+struct Block { stmts: List }
+struct IfExpr { cond: Object, then_branch: Object, else_branch: Object }
+
+fn program_new() => Program { stmts: [] }

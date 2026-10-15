@@ -1,0 +1,13 @@
+-- test/assert.kds - Assertion helpers
+
+fn assert_eq(a, b) { assert a == b }
+fn assert_neq(a, b) { assert a != b }
+fn assert_gt(a, b) { assert a > b }
+fn assert_lt(a, b) { assert a < b }
+fn assert_gte(a, b) { assert a >= b }
+fn assert_lte(a, b) { assert a <= b }
+fn assert_contains(haystack, needle) { assert haystack.contains(needle) }
+fn assert_empty(v) { assert v.len == 0 }
+fn assert_not_empty(v) { assert v.len > 0 }
+fn assert_ok(v) { assert v.is_ok }
+fn assert_err(v) { assert v.is_err }

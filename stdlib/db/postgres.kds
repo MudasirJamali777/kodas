@@ -1,0 +1,6 @@
+-- db/postgres.kds - PostgreSQL client (future)
+
+fn pg_connect(conn_str) { give err("not yet implemented") }
+fn pg_query(db, sql) { give err("not yet implemented") }
+fn pg_exec(db, sql) { give err("not yet implemented") }
+fn pg_close(db) { give ok(true) }

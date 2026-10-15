@@ -1,0 +1,4 @@
+-- db/mysql.kds - MySQL client (future)
+fn mysql_connect(conn_str) { give err("not yet implemented") }
+fn mysql_query(db, sql) { give err("not yet implemented") }
+fn mysql_close(db) { give ok(true) }

@@ -1,0 +1,21 @@
+-- web/websocket.kds - WebSocket support
+--
+-- Planned API:
+--   ws "/chat" fn(socket) => {
+--       socket.on_message fn(msg) => socket.broadcast(msg)
+--   }
+
+struct WsSocket { id: Int }
+
+fn ws_send(socket, msg) {
+    -- Placeholder
+}
+fn ws_broadcast(socket, msg) {
+    -- Placeholder
+}
+fn ws_on_message(socket, handler) {
+    -- Placeholder
+}
+fn ws_on_close(socket, handler) {
+    -- Placeholder
+}

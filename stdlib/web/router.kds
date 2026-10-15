@@ -1,0 +1,24 @@
+-- web/router.kds - HTTP router
+
+struct Route { method: String, path: String, handler: (Request) -> Response }
+struct Router { routes: List }
+
+fn router_new() => Router { routes: [] }
+
+fn router_add(router, method, path, handler) {
+    router.routes.push(Route { method: method, path: path, handler: handler })
+}
+
+fn router_get(router, path, handler) => router_add(router, "GET", path, handler)
+fn router_post(router, path, handler) => router_add(router, "POST", path, handler)
+fn router_put(router, path, handler) => router_add(router, "PUT", path, handler)
+fn router_delete(router, path, handler) => router_add(router, "DELETE", path, handler)
+
+fn router_match(router, req) {
+    loop route in router.routes {
+        if route.method == req.method && route.path == req.path {
+            give ok(route.handler(req))
+        }
+    }
+    give err("no matching route")
+}
