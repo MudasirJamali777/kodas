@@ -2,6 +2,11 @@
 #ifndef KODAS_COMMON_H
 #define KODAS_COMMON_H
 
+// Ensure POSIX APIs (strnlen, strdup, etc.) on Linux/macOS
+#if !defined(_MSC_VER) && !defined(_POSIX_C_SOURCE)
+#define _POSIX_C_SOURCE 200809L
+#endif
+
 // ---------------------------------------------------------------------------
 // Standard C headers FIRST (so Windows headers don't override them)
 // ---------------------------------------------------------------------------
@@ -139,7 +144,8 @@ static inline char* kodas_strdup(const char* s) {
 }
 
 static inline char* kodas_strndup(const char* s, size_t n) {
-    size_t len = strnlen(s, n);
+    size_t len = 0;
+    while (len < n && s[len] != '\0') len++;
     char* p = (char*)kodas_malloc(len + 1);
     memcpy(p, s, len);
     p[len] = '\0';

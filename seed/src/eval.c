@@ -7,6 +7,42 @@
 
 extern double current_time_seconds_impl(void);
 
+// ── Native constructors (struct / enum variant) ────────────────────────
+// These are stored as VAL_NATIVE with ctx pointing to a null-terminated name
+// string (type name for structs, "Enum.Variant" for variants).
+
+static Value native_struct_ctor(int argc, Value* argv, void* ctx) {
+    const char* type_name = (const char*)ctx;
+    Value inst = val_struct(type_name);
+    // Positional constructor: User(name, age) - we don't have param->field mapping
+    // but the EXPR_STRUCT_INIT syntax User{name:"x", age:1} handles named init.
+    // So this just returns a zeroed struct (used for User.new() static methods).
+    (void)argc; (void)argv;
+    return inst;
+}
+
+static Value native_enum_variant_ctor(int argc, Value* argv, void* ctx) {
+    // ctx is a string "EnumName.VariantName"
+    const char* full = (const char*)ctx;
+    const char* dot = strchr(full, '.');
+    char enum_name[128] = {0};
+    char var_name[128] = {0};
+    if (dot) {
+        size_t el = (size_t)(dot - full);
+        memcpy(enum_name, full, el);
+        strncpy(var_name, dot + 1, sizeof(var_name) - 1);
+    } else {
+        strncpy(var_name, full, sizeof(var_name) - 1);
+    }
+    if (argc == 0) return val_enum_variant(enum_name, var_name, NULL);
+    if (argc == 1) return val_enum_variant(enum_name, var_name, &argv[0]);
+    // Multi-payload -> wrap in tuple
+    Value tup = val_tuple(argv, argc);
+    Value v = val_enum_variant(enum_name, var_name, &tup);
+    value_free(&tup);
+    return v;
+}
+
 static void vparams_from_params(VParamList* dst, ParamList* src) {
     memset(dst, 0, sizeof(VParamList));
     for (int i = 0; i < src->count; i++) {
@@ -303,32 +339,69 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
             Value obj = eval_expr(ev, env, e->as.method_call.object);
             if (ev->had_error) return val_null();
             int argc = e->as.method_call.args.count;
-            Value* argv = kodas_calloc(argc + 1, sizeof(Value));
-            argv[0] = obj; // self
-            for (int i = 0; i < argc; i++) {
-                argv[i+1] = eval_expr(ev, env, e->as.method_call.args.items[i]);
-                if (ev->had_error) {
-                    for (int j = 0; j <= i+1; j++) value_free(&argv[j]);
-                    free(argv); return val_null();
-                }
+
+            // Determine the type name and whether this is a static-style call
+            const char* type_name = NULL;
+            bool is_type_ref = false;
+            if (obj.kind == VAL_STRUCT_INST) {
+                type_name = obj.as.struct_inst->type_name;
+            } else if (obj.kind == VAL_NATIVE && obj.as.native.ctx) {
+                // Static call: e.g. Point.make(...) — obj is the native struct/enum ctor,
+                // whose ctx is the type name string "Point" or "Shape".
+                type_name = (const char*)obj.as.native.ctx;
+                is_type_ref = true;
             }
-            // Look for method on struct instance first, then builtin
+
+            // Resolve callee
             Value callee = val_null();
             bool found = false;
-            if (obj.kind == VAL_STRUCT_INST) {
-                // Methods stored in behave blocks - for simplicity check globals
-                char method_name[256];
-                snprintf(method_name, sizeof(method_name), "%s.%s", obj.as.struct_inst->type_name, e->as.method_call.method);
-                Value* fn = env_lookup(ev->globals, method_name);
+            char method_key[256];
+            if (type_name) {
+                snprintf(method_key, sizeof(method_key), "%s.%s", type_name, e->as.method_call.method);
+                Value* fn = env_lookup(ev->globals, method_key);
                 if (fn) { callee = value_copy(*fn); found = true; }
             }
             if (!found) {
                 Value* fn = env_lookup(ev->globals, e->as.method_call.method);
                 if (fn) { callee = value_copy(*fn); found = true; }
             }
+
+            // Build default argv: [obj, arg1, arg2, ...] for instance builtins
+            Value* argv = kodas_calloc(argc + 2, sizeof(Value));
+            argv[0] = value_copy(obj);
+            bool args_ok = true;
+            for (int i = 0; i < argc; i++) {
+                argv[i+1] = eval_expr(ev, env, e->as.method_call.args.items[i]);
+                if (ev->had_error) { args_ok = false; break; }
+            }
+            if (!args_ok) {
+                for (int i = 0; i <= argc; i++) value_free(&argv[i]);
+                free(argv); value_free(&obj); value_free(&callee);
+                return val_null();
+            }
+
             Value result;
             if (found) {
-                result = eval_call(ev, env, callee, argc + 1, argv);
+                bool method_has_self = false;
+                if (callee.kind == VAL_CLOSURE && callee.as.closure->params.count > 0) {
+                    method_has_self = callee.as.closure->params.items[0].is_self;
+                }
+                int call_argc;
+                Value* call_argv;
+                if (is_type_ref) {
+                    // Static call: args are argv[1..argc] (skip argv[0]=obj)
+                    call_argc = argc;
+                    call_argv = argv + 1;
+                } else if (method_has_self) {
+                    // Instance method with self: argv[0..argc]
+                    call_argc = argc + 1;
+                    call_argv = argv;
+                } else {
+                    // Instance value but no self param — skip obj
+                    call_argc = argc;
+                    call_argv = argv + 1;
+                }
+                result = eval_call(ev, env, callee, call_argc, call_argv);
             } else {
                 // Try builtin functions as methods (e.g. xs.push(4) -> push(xs, 4))
                 Value* bf = env_lookup(ev->globals, e->as.method_call.method);
@@ -452,8 +525,9 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
                     result = val_null();
                 }
             }
-            for (int i = 0; i < argc + 1; i++) value_free(&argv[i]);
+            for (int i = 0; i <= argc; i++) value_free(&argv[i]);
             free(argv);
+            value_free(&obj);
             value_free(&callee);
             return result;
         }
@@ -869,27 +943,28 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             return val_null();
         }
         case STMT_STRUCT: {
-            // Register a constructor native function
+            // Register a native constructor: User(...) builds a User struct
             const char* sname = stmt->as.struct_s.name;
-            // Store struct definition via a sentinel native that constructs
-            Closure* ctor_closure = (Closure*)kodas_calloc(1, sizeof(Closure));
-            ctor_closure->name = kodas_strdup(sname);
-            ctor_closure->body = NULL;  // marker for native struct
-            ctor_closure->closure = NULL;
-            // Use a simpler approach: store name in globals as a marker
-            env_define(env, sname, val_string(sname), false);
+            char* name_copy = kodas_strdup(sname);
+            env_define(env, sname, val_native(native_struct_ctor, sname, name_copy), false);
             return val_null();
         }
         case STMT_ENUM: {
-            // Register enum constructors as globals
+            const char* ename = stmt->as.enum_s.name;
+            // Register each variant as a constructor (both with and without payload)
             for (int i = 0; i < stmt->as.enum_s.variants.count; i++) {
                 const char* var_name = stmt->as.enum_s.variants.items[i].name;
-                // Simple variant without payload -> value
-                if (stmt->as.enum_s.variants.items[i].fields.count == 0) {
-                    Value v = val_enum_variant(stmt->as.enum_s.name, var_name, NULL);
-                    env_define(env, var_name, v, false);
-                }
+                int nfields = stmt->as.enum_s.variants.items[i].fields.count;
+                // Build key "EnumName.VariantName"
+                char* full = (char*)kodas_malloc(strlen(ename) + strlen(var_name) + 2);
+                strcpy(full, ename); strcat(full, "."); strcat(full, var_name);
+                Value ctor = val_native(native_enum_variant_ctor, var_name, full);
+                // For Shape.Circle(...) style we need to register Shape too as type marker
+                env_define(env, var_name, ctor, false);
             }
+            // Also register the enum name as a type marker (matches struct behavior)
+            char* ename_copy = kodas_strdup(ename);
+            env_define(env, ename, val_native(native_struct_ctor, ename, ename_copy), false);
             return val_null();
         }
         case STMT_BEHAVE: {

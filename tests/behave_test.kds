@@ -1,0 +1,76 @@
+-- tests/behave_test.kds - Struct methods via behave blocks
+
+struct User { name: String, age: Int }
+struct Counter { val: Int }
+struct Point { x: Float, y: Float }
+
+-- Instance methods with self
+behave User {
+    fn greet(self) -> String {
+        give "Hi, " + self.name
+    }
+    fn birthday(mut self) {
+        self.age = self.age + 1
+    }
+    fn describe(self) -> String {
+        give self.name + " is " + str(self.age) + " years old"
+    }
+}
+
+-- Static constructors & mut self
+behave Counter {
+    fn make(start: Int) -> Counter {
+        give Counter { val: start }
+    }
+    fn increment(mut self) {
+        self.val = self.val + 1
+    }
+    fn add(mut self, n: Int) {
+        self.val = self.val + n
+    }
+    fn get(self) -> Int {
+        give self.val
+    }
+}
+
+-- Static factory methods + math
+behave Point {
+    fn origin() -> Point { give Point { x: 0.0, y: 0.0 } }
+    fn make(x: Float, y: Float) -> Point { give Point { x: x, y: y } }
+    fn dist(self, other: Point) -> Float {
+        let dx = self.x - other.x
+        let dy = self.y - other.y
+        give sqrt(dx*dx + dy*dy)
+    }
+}
+
+-- Tests
+let alice = User { name: "Alice", age: 30 }
+assert(alice.greet() == "Hi, Alice", "greet returns Hi, name")
+assert(alice.describe() == "Alice is 30 years old", "describe works")
+
+alice.birthday()
+assert(alice.age == 31, "birthday increments age")
+
+let c = Counter.make(0)
+assert(c.get() == 0, "counter starts at 0")
+c.increment()
+c.increment()
+c.add(5)
+assert(c.get() == 7, "counter increments add to 7")
+
+let p0 = Point.origin()
+let p1 = Point.make(3.0, 4.0)
+assert(p0.dist(p1) == 5.0, "distance from (0,0) to (3,4) is 5")
+assert(p1.x == 3.0, "point x is 3")
+assert(p1.y == 4.0, "point y is 4")
+
+let xs = [1, 2, 3]
+xs.push(4)
+assert(xs.len() == 4, "list push mutates")
+
+show "  [ok] behave instance methods"
+show "  [ok] behave mut self"
+show "  [ok] behave static constructors"
+show "  [ok] behave methods with arguments"
+show "=== behave tests passed ==="

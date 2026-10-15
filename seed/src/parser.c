@@ -23,6 +23,7 @@ static Token* peek_tok(Parser* p) {
 }
 
 static Token* previous(Parser* p) {
+    if (p->pos == 0) return &p->tokens[0];
     return &p->tokens[p->pos - 1];
 }
 
