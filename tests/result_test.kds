@@ -1,0 +1,43 @@
+-- tests/result_test.kds - Result[T,E] with ok/err and |?> error pipe
+
+fn safe_div(a: Int, b: Int) {
+    if b == 0 { give err("division by zero") }
+    give ok(a / b)
+}
+
+fn parse_int(s) {
+    let v = int(s)
+    -- Naive: always ok for valid ints; otherwise err
+    if v == 0 && s != "0" { give err("not a number: " + s) }
+    give ok(v)
+}
+
+-- Direct matching tests
+let r1 = safe_div(10, 2)
+let r2 = safe_div(10, 0)
+assert(is_ok(r1), "10/2 is ok")
+assert(is_err(r2), "10/0 is err")
+assert(unwrap(r1) == 5, "unwrap 10/2 = 5")
+assert(unwrap_or(r2, -1) == -1, "unwrap_or on err returns default")
+
+-- |?> error pipe: chains functions, short-circuits on err
+let chained = ok("42") |?> parse_int |?> fn(x) { ok(x + 1) }
+assert(is_ok(chained), "chained ok")
+assert(unwrap(chained) == 43, "42+1 = 43")
+
+let chained_err = ok("abc") |?> parse_int |?> fn(x) { ok(x + 1) }
+assert(is_err(chained_err), "chained err short-circuits")
+
+let direct_err = err("bad") |?> parse_int
+assert(is_err(direct_err), "err propagates through pipe")
+
+-- Basic ok/err constructors
+let o = ok(42)
+let e = err("fail")
+assert(is_ok(o), "ok constructor")
+assert(is_err(e), "err constructor")
+
+show "  [ok] ok/err constructors"
+show "  [ok] is_ok/is_err/unwrap/unwrap_or"
+show "  [ok] |?> error pipe short-circuit"
+show "=== result tests passed ==="
