@@ -1,0 +1,45 @@
+-- tests/maybe_test.kds - maybe T and empty
+-- empty is the universal absent value (like None across all types).
+-- For typed pattern-matching, use the Option enum below.
+
+enum Option { Just(Int), Nothing }
+
+fn safe_get(xs, i) -> Option {
+    if i < 0 || i >= len(xs) { give Nothing }
+    give Just(xs[i])
+}
+
+fn opt_add_one(opt) -> Option {
+    match opt {
+        Just(n) => Just(n + 1),
+        Nothing => Nothing
+    }
+}
+
+-- Tests
+assert(empty == empty, "empty equals empty")
+assert(typeof(empty) == "maybe", "empty has type maybe")
+
+let xs = [10, 20, 30]
+let a = safe_get(xs, 1)
+let b = safe_get(xs, 10)
+
+let av = match a { Just(n) => n, Nothing => -1 }
+let bv = match b { Just(n) => n, Nothing => -1 }
+assert(av == 20, "xs[1] = 20")
+assert(bv == -1, "oob returns -1")
+
+let c = opt_add_one(Just(5))
+let d = opt_add_one(Nothing)
+let cv = match c { Just(n) => n, Nothing => -1 }
+let dv = match d { Just(n) => n, Nothing => -1 }
+assert(cv == 6, "5+1 = 6")
+assert(dv == -1, "nothing stays nothing")
+
+let name = empty
+assert(name == empty, "empty let binding")
+
+show "  [ok] empty keyword"
+show "  [ok] maybe T via Option enum"
+show "  [ok] maybe pattern match"
+show "=== maybe tests passed ==="
