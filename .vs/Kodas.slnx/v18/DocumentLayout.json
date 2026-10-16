@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "D:\\Kodas\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Kodas\\vscode-extension\\snippets\\kodas.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:vscode-extension\\snippets\\kodas.json||{90A6B3A7-C1A3-4009-A288-E2FF89E96FA0}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Kodas\\docs\\cookbook.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:docs\\cookbook.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
     },
@@ -27,19 +31,32 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "kodas.json",
+              "DocumentMoniker": "D:\\Kodas\\vscode-extension\\snippets\\kodas.json",
+              "RelativeDocumentMoniker": "vscode-extension\\snippets\\kodas.json",
+              "ToolTip": "D:\\Kodas\\vscode-extension\\snippets\\kodas.json",
+              "RelativeToolTip": "vscode-extension\\snippets\\kodas.json",
+              "ViewState": "AgIAABIAAAAAAAAAAAAAADQAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001642|",
+              "WhenOpened": "2026-10-16T05:07:33.042Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "cookbook.md",
               "DocumentMoniker": "D:\\Kodas\\docs\\cookbook.md",
               "RelativeDocumentMoniker": "docs\\cookbook.md",
               "ToolTip": "D:\\Kodas\\docs\\cookbook.md",
               "RelativeToolTip": "docs\\cookbook.md",
-              "ViewState": "AgIAADkAAAAAAAAAAAAAAAsAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAA4AAAAIAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
               "WhenOpened": "2026-10-15T15:36:19.819Z",
               "EditorCaption": ""
             },
             {
               "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 2,
               "Title": "math.kds",
               "DocumentMoniker": "D:\\Kodas\\tests\\math.kds",
               "RelativeDocumentMoniker": "tests\\math.kds",
@@ -47,8 +64,7 @@
               "RelativeToolTip": "tests\\math.kds",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
-              "WhenOpened": "2026-10-13T15:47:10.791Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-10-13T15:47:10.791Z"
             }
           ]
         }
