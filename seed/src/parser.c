@@ -59,7 +59,7 @@ static void synchronize(Parser* p) {
         switch (peek_tok(p)->kind) {
             case TOK_FN: case TOK_LET: case TOK_SEAL: case TOK_STRUCT: case TOK_ENUM:
             case TOK_IF: case TOK_LOOP: case TOK_MATCH: case TOK_SHOW: case TOK_TEST:
-            case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPORT: case TOK_MODULE:
+            case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_IMPORT: case TOK_MODULE:
             case TOK_BRIDGE: case TOK_RETURN:
                 return;
             default: advance_tok(p);
@@ -1224,6 +1224,42 @@ static Stmt* parse_trait(Parser* p, bool is_pub) {
     return s;
 }
 
+static Stmt* parse_impl(Parser* p, bool is_pub) {
+    // impl TraitName for TypeName { fn method(...) { ... } ... }
+    Location loc = prev_loc(p);
+    Token* trait_t = consume(p, TOK_IDENT, "expected trait name after impl");
+    consume(p, TOK_FOR, "expected 'for' in impl block");
+    Token* type_t = consume(p, TOK_IDENT, "expected type name after 'for'");
+    Stmt* s = stmt_new(STMT_IMPL, loc);
+    s->as.impl_s.trait_name = kodas_strndup(trait_t->start, trait_t->length);
+    s->as.impl_s.type_name = kodas_strndup(type_t->start, type_t->length);
+    s->as.impl_s.is_pub = is_pub;
+    s->as.impl_s.methods.count = 0;
+    s->as.impl_s.methods.items = NULL;
+
+    consume(p, TOK_LBRACE, "expected '{'");
+    while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
+        if (match_tok(p, TOK_FN)) {
+            Token* mn = consume(p, TOK_IDENT, "expected method name");
+            FnDecl m = {0};
+            m.name = kodas_strndup(mn->start, mn->length);
+            m.params = parse_params(p);
+            if (match_tok(p, TOK_ARROW)) m.ret_type = parse_type(p);
+            if (match_tok(p, TOK_FAT_ARROW)) {
+                m.body = parse_expr(p);
+                m.is_arrow = true;
+            } else if (is_at(p, TOK_LBRACE)) {
+                m.body = parse_primary(p);
+            }
+            da_append(&s->as.impl_s.methods, m);
+        } else {
+            advance_tok(p);
+        }
+    }
+    consume(p, TOK_RBRACE, "expected '}'");
+    return s;
+}
+
 static Stmt* parse_import(Parser* p, bool is_pub) {
     Location loc = prev_loc(p);
     Token* mod = consume(p, TOK_IDENT, "expected module name");
@@ -1389,6 +1425,10 @@ static Stmt* parse_declaration(Parser* p) {
         case TOK_TRAIT:
             advance_tok(p);
             s = parse_trait(p, is_pub);
+            break;
+        case TOK_IMPL:
+            advance_tok(p);
+            s = parse_impl(p, is_pub);
             break;
         case TOK_LET: {
             advance_tok(p);

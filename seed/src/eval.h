@@ -16,6 +16,7 @@ typedef struct {
     Environment* globals;
     int call_depth;
     char error_msg[1024];
+    Stmt* prog_first;
 } Evaluator;
 
 void eval_init(Evaluator* ev);

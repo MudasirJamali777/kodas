@@ -6,7 +6,7 @@
 static const char* keywords[] = {
     "let", "seal", "show", "fn", "if", "else", "match",
     "loop", "while", "in", "stop", "skip", "give", "return",
-    "struct", "enum", "behave", "trait", "is", "pub",
+    "struct", "enum", "behave", "trait", "impl", "is", "pub",
     "as", "module", "import", "use", "mut", "true", "false",
     "maybe", "empty", "ok", "err", "Result", "never", "any",
     "flow", "together", "timeout", "Channel", "bridge", "link",
@@ -20,7 +20,7 @@ static const char* keywords[] = {
 static const TokenKind kw_tokens[] = {
     TOK_LET, TOK_SEAL, TOK_SHOW, TOK_FN, TOK_IF, TOK_ELSE, TOK_MATCH,
     TOK_LOOP, TOK_WHILE, TOK_IN, TOK_STOP, TOK_SKIP, TOK_GIVE, TOK_RETURN,
-    TOK_STRUCT, TOK_ENUM, TOK_BEHAVE, TOK_TRAIT, TOK_IS, TOK_PUB,
+    TOK_STRUCT, TOK_ENUM, TOK_BEHAVE, TOK_TRAIT, TOK_IMPL, TOK_IS, TOK_PUB,
     TOK_AS, TOK_MODULE, TOK_IMPORT, TOK_USE, TOK_MUT, TOK_TRUE, TOK_FALSE,
     TOK_MAYBE, TOK_EMPTY, TOK_OK, TOK_ERR, TOK_RESULT, TOK_NEVER, TOK_ANY,
     TOK_FLOW, TOK_TOGETHER, TOK_TIMEOUT, TOK_CHANNEL, TOK_BRIDGE, TOK_LINK,
@@ -189,6 +189,7 @@ static TokenKind ident_type(Lexer* lex) {
             if (strcmp(buf, "if") == 0) return TOK_IF;
             if (strcmp(buf, "in") == 0) return TOK_IN;
             if (strcmp(buf, "import") == 0) return TOK_IMPORT;
+            if (strcmp(buf, "impl") == 0) return TOK_IMPL;
             if (strcmp(buf, "is") == 0) return TOK_IS;
             break;
         case 'l':
@@ -604,6 +605,7 @@ const char* token_kind_name(TokenKind kind) {
         case TOK_ENUM: return "enum";
         case TOK_BEHAVE: return "behave";
         case TOK_TRAIT: return "trait";
+        case TOK_IMPL: return "impl";
         case TOK_IS: return "is";
         case TOK_PUB: return "pub";
         case TOK_AS: return "as";

@@ -1,0 +1,63 @@
+-- trait_test.kds - Traits (interfaces) and impl blocks
+trait Show {
+  fn greet(self) -> String
+  fn shout(self) {
+    show self.greet()
+  }
+}
+
+struct User { name: String, age: Int }
+
+impl Show for User {
+  fn greet(self) -> String {
+    give "Hi, " + self.name
+  }
+}
+
+behave User {
+  fn make(name: String) -> User {
+    give User { name: name, age: 0 }
+  }
+}
+
+let u = User { name: "Alice", age: 30 }
+assert(u.name == "Alice")
+assert(u.age == 30)
+
+-- Method from impl block
+let g = u.greet()
+assert(g == "Hi, Alice")
+
+-- Default trait method calls overridden greet
+u.shout()
+
+-- Static constructor
+let u2 = User.make("Bob")
+assert(u2.name == "Bob")
+assert(u2.greet() == "Hi, Bob")
+u2.shout()
+
+-- Second type implementing the same trait
+struct Dog { name: String }
+impl Show for Dog {
+  fn greet(self) -> String { give "Woof, " + self.name }
+}
+let d = Dog { name: "Rex" }
+assert(d.greet() == "Woof, Rex")
+d.shout()
+
+-- Trait-only default body works when not overridden
+trait Describer {
+  fn label(self) -> String { give "thing" }
+  fn say_label(self) { show self.label() }
+}
+struct Box { size: Int }
+impl Describer for Box {}
+let b = Box { size: 5 }
+b.say_label()
+
+show "  [ok] trait definition and impl"
+show "  [ok] default trait methods"
+show "  [ok] static constructors with traits"
+show "  [ok] multiple types per trait"
+show "=== trait tests passed ==="

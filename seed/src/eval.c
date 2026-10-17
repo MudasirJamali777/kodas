@@ -990,13 +990,70 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             return val_null();
         }
         case STMT_TRAIT: {
-            // Trait definitions - register default methods
+            // Register trait default methods as closures keyed by "TraitName.methodName"
             for (int i = 0; i < stmt->as.trait_s.method_count; i++) {
-                if (stmt->as.trait_s.methods[i].default_body) {
-                    // Store default as global trait_name.method_name
+                TraitMethod* m = &stmt->as.trait_s.methods[i];
+                if (m->default_body) {
                     char key[256];
-                    snprintf(key, sizeof(key), "%s.%s", stmt->as.trait_s.name, stmt->as.trait_s.methods[i].name);
-                    // Could store but methods are resolved by behave blocks
+                    snprintf(key, sizeof(key), "%s.%s", stmt->as.trait_s.name, m->name);
+                    Closure* c = (Closure*)kodas_calloc(1, sizeof(Closure));
+                    c->name = kodas_strdup(key);
+                    vparams_from_params(&c->params, &m->params);
+                    c->body = m->default_body;
+                    c->is_arrow = false;
+                    c->closure = env;
+                    env_define(ev->globals, key, val_closure(c), false);
+                }
+            }
+            return val_null();
+        }
+        case STMT_IMPL: {
+            // impl Trait for Type { fn method(...) { ... } }
+            // First collect which method names this impl overrides.
+            const char* trait_name = stmt->as.impl_s.trait_name;
+            const char* type_name = stmt->as.impl_s.type_name;
+            bool provided[64] = {0};
+            int provided_cap = 64;
+            for (int i = 0; i < stmt->as.impl_s.methods.count; i++) {
+                FnDecl* m = &stmt->as.impl_s.methods.items[i];
+                char full_name[256];
+                snprintf(full_name, sizeof(full_name), "%s.%s", type_name, m->name);
+                Closure* c = (Closure*)kodas_calloc(1, sizeof(Closure));
+                c->name = kodas_strdup(full_name);
+                vparams_from_params(&c->params, &m->params);
+                c->body = m->body;
+                c->is_arrow = m->is_arrow;
+                c->closure = env;
+                env_define(ev->globals, full_name, val_closure(c), false);
+                if (i < provided_cap) provided[i] = true;
+            }
+            // Also copy default trait methods (from TraitName.method) for any not overridden.
+            // Naive scan: look for globals starting with "TraitName." and register alias "Type.method"
+            // In seed, globals are in an Environment*; we iterate by scanning names we know.
+            // For simplicity, we iterate up to a reasonable number of trait methods if they exist in impl_s context — instead we maintain a global list via env iteration.
+            // Since env iteration is unavailable, we rely on a flat scan via env_lookup on known defaults stored during trait decl.
+            // Use the trait_methods list on ev? Simpler: we stored trait defaults under "Trait.method"; copy each one whose matching "Type.method" isn't already present.
+            // We keep a small hard-coded table of known trait methods — but better: find the STMT_TRAIT matching trait_name in the program and iterate.
+            // Do a lazy approach: walk the program to find trait decl.
+            {
+                Stmt* ts = NULL;
+                for (Stmt* s2 = ev->prog_first; s2; s2 = s2->next) {
+                    if (s2->kind == STMT_TRAIT && strcmp(s2->as.trait_s.name, trait_name) == 0) { ts = s2; break; }
+                }
+                if (ts) {
+                    for (int i = 0; i < ts->as.trait_s.method_count; i++) {
+                        TraitMethod* tm = &ts->as.trait_s.methods[i];
+                        if (!tm->default_body) continue;
+                        char type_key[256];
+                        snprintf(type_key, sizeof(type_key), "%s.%s", type_name, tm->name);
+                        if (env_lookup(ev->globals, type_key)) continue; // already overridden
+                        char trait_key[256];
+                        snprintf(trait_key, sizeof(trait_key), "%s.%s", trait_name, tm->name);
+                        Value* def = env_lookup(ev->globals, trait_key);
+                        if (def) {
+                            env_define(ev->globals, type_key, value_copy(*def), false);
+                        }
+                    }
                 }
             }
             return val_null();
@@ -1048,14 +1105,13 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             if (stmt->next) return eval_stmt(ev, env, stmt->next);
             return val_null();
         }
-        case STMT_IMPL:
-            return val_null();
     }
     return val_null();
 }
 
 Value eval_program(Evaluator* ev, Program* prog) {
     Value result = val_null();
+    ev->prog_first = prog->first;
     for (Stmt* s = prog->first; s; s = s->next) {
         value_free(&result);
         result = eval_stmt(ev, ev->globals, s);

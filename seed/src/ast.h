@@ -254,6 +254,12 @@ struct Stmt {
             bool is_pub;
             GenericParamList generics;
         } trait_s;
+        struct {
+            char* trait_name;
+            char* type_name;
+            FnDeclList methods;
+            bool is_pub;
+        } impl_s;
         struct { char* name; NameList imports; bool is_pub; } import_s;
         struct { char* name; bool is_pub; } module_s;
         struct { char* lang; StmtList stmts; } bridge_s;

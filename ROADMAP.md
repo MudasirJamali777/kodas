@@ -30,7 +30,7 @@
 - [ ] Default parameters
 - [ ] Multiple return values (tuples)
 - [x] Behave methods (full method dispatch, self/mut self/static ctors)
-- [ ] Traits
+- [x] Traits (trait definitions, impl Trait for Type blocks, default methods, duck-typed dispatch)
 - [x] Enums with payload (single + multi-payload, pattern matching)
 - [ ] Generics [T], [T: Trait]
 - [x] maybe T + empty (empty keyword + Option-style enum pattern matching)
