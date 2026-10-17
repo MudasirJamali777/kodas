@@ -789,6 +789,11 @@ static Expr* parse_call_args(Parser* p, Expr* callee, Location loc) {
 static Expr* parse_postfix(Parser* p, Expr* left) {
     for (;;) {
         Location loc = prev_loc(p);
+        if (match_tok(p, TOK_DEMAND)) {
+            // postfix 'demand': force-unwrap. Emit as binary op "demand" with NULL right.
+            left = expr_binary(left, kodas_strdup("demand"), NULL, loc);
+            continue;
+        }
         if (is_at(p, TOK_LPAREN)) {
             left = parse_call_args(p, left, loc);
         } else if (match_tok(p, TOK_DOT)) {
@@ -860,8 +865,8 @@ Expr* parse_precedence(Parser* p, int min_prec) {
         Token* op_tok = peek_tok(p);
         int prec = get_precedence(op_tok);
 
-        if (op_tok->kind == TOK_PIPE_ARROW || op_tok->kind == TOK_OTHERWISE) {
-            bool is_err = (op_tok->kind == TOK_PIPE_ARROW);
+        if (op_tok->kind == TOK_PIPE_ARROW) {
+            bool is_err;
             // Need to check if it's |?> (error pipe) or |> (normal pipe)
             // Our lexer maps both |?> and |> to TOK_PIPE_ARROW, disambiguate by content
             is_err = (op_tok->length == 3 && op_tok->start[1] == '?');
@@ -870,7 +875,6 @@ Expr* parse_precedence(Parser* p, int min_prec) {
             // Wrap into pipe expression
             Expr* pipe_e;
             if (left->kind == EXPR_PIPE && left->as.pipe.is_error == is_err) {
-                // Append to existing chain
                 left->as.pipe.pipelines = kodas_realloc(left->as.pipe.pipelines,
                     (left->as.pipe.pipe_count + 1) * sizeof(Expr*));
                 left->as.pipe.pipelines[left->as.pipe.pipe_count++] = right;
@@ -883,6 +887,15 @@ Expr* parse_precedence(Parser* p, int min_prec) {
             pipe_e->as.pipe.pipe_count = 1;
             pipe_e->as.pipe.is_error = is_err;
             left = pipe_e;
+            continue;
+        }
+
+        if (op_tok->kind == TOK_OTHERWISE) {
+            // <expr> otherwise <default>  : if expr is err/empty, evaluate default (short-circuiting)
+            advance_tok(p);
+            Expr* right = parse_precedence(p, prec + 1);
+            Expr* e = expr_binary(left, kodas_strdup("otherwise"), right, loc);
+            left = e;
             continue;
         }
 

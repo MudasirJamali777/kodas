@@ -35,7 +35,7 @@
 - [ ] Generics [T], [T: Trait]
 - [x] maybe T + empty (empty keyword + Option-style enum pattern matching)
 - [x] |>, |?> pipe operators (forward + error pipe with short-circuit)
-- [ ] otherwise / demand
+- [x] otherwise / demand (`x otherwise default`, `x demand` for Result/maybe)
 - [ ] flow / together / timeout concurrency
 - [ ] Channel[T]
 - [ ] bridge blocks

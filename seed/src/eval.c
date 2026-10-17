@@ -180,6 +180,46 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
         }
 
         case EXPR_BINARY: {
+            // Handle otherwise / demand before normal binary evaluation
+            if (e->as.binary.op && strcmp(e->as.binary.op, "demand") == 0) {
+                Value v = eval_expr(ev, env, e->as.binary.left);
+                if (ev->had_error) return val_null();
+                bool is_bad = false;
+                if (v.kind == VAL_RESULT && v.is_error) is_bad = true;
+                if (v.kind == VAL_MAYBE && v.as.wrapped == NULL) is_bad = true;
+                if (is_bad) {
+                    runtime_error(ev, "demand: value is error or empty");
+                    value_free(&v);
+                    return val_null();
+                }
+                // Unwrap: return wrapped value if Result-ok or Maybe-some
+                if ((v.kind == VAL_RESULT && !v.is_error && v.as.wrapped) ||
+                    (v.kind == VAL_MAYBE && v.as.wrapped)) {
+                    Value inner = value_copy(*v.as.wrapped);
+                    value_free(&v);
+                    return inner;
+                }
+                return v;
+            }
+            if (e->as.binary.op && strcmp(e->as.binary.op, "otherwise") == 0) {
+                Value v = eval_expr(ev, env, e->as.binary.left);
+                if (ev->had_error) { ev->had_error = false; ev->error_msg[0] = 0; value_free(&v); return eval_expr(ev, env, e->as.binary.right); }
+                bool is_bad = false;
+                if (v.kind == VAL_RESULT && v.is_error) is_bad = true;
+                if (v.kind == VAL_MAYBE && v.as.wrapped == NULL) is_bad = true;
+                if (is_bad) {
+                    value_free(&v);
+                    return eval_expr(ev, env, e->as.binary.right);
+                }
+                // If ok-result or some-maybe, unwrap
+                if (((v.kind == VAL_RESULT && !v.is_error) || v.kind == VAL_MAYBE) && v.as.wrapped) {
+                    Value inner = value_copy(*v.as.wrapped);
+                    value_free(&v);
+                    return inner;
+                }
+                return v;
+            }
+
             Value left = eval_expr(ev, env, e->as.binary.left);
             if (ev->had_error) return val_null();
             // Short-circuit

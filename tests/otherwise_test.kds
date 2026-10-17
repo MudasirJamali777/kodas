@@ -1,0 +1,44 @@
+-- otherwise_test.kds - otherwise (unwrap-or-else) and demand (force-unwrap) operators
+
+fn safe_div(a: Int, b: Int) -> Result {
+  if b == 0 { give err("divide by zero") }
+  give ok(a / b)
+}
+
+fn maybe_get(key: String) -> Int {
+  if key == "a" { give 1 }
+  give empty
+}
+
+-- otherwise: returns default on err/empty
+let r1 = safe_div(10, 2) otherwise 0
+assert(r1 == 5)
+
+let r2 = safe_div(10, 0) otherwise -1
+assert(r2 == -1)
+
+let m1 = maybe_get("a") otherwise -1
+assert(m1 == 1)
+
+let m2 = maybe_get("missing") otherwise 42
+assert(m2 == 42)
+
+-- chaining: error pipe + otherwise
+let r3 = safe_div(20, 0) |?> (fn(x) { ok(x + 1) }) otherwise 99
+assert(r3 == 99)
+
+let r4 = safe_div(20, 4) |?> (fn(x) { ok(x + 1) }) otherwise -1
+assert(r4 == 6)
+
+-- demand: panics on err/empty (we only test the success path here)
+let r5 = safe_div(100, 5) demand
+assert(r5 == 20)
+
+let m5 = maybe_get("a") demand
+assert(m5 == 1)
+
+show "  [ok] otherwise returns default on err/empty"
+show "  [ok] otherwise unwraps ok/some values"
+show "  [ok] demand force-unwraps ok/some values"
+show "  [ok] otherwise chains with |?> error pipe"
+show "=== otherwise/demand tests passed ==="
