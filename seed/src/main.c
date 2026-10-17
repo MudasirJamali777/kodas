@@ -1,11 +1,14 @@
 /// main.c - Kodas CLI entry point
+#define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include "lexer.h"
 #include "parser.h"
 #include "eval.h"
+#include "codegen/codegen_c.h"
 
 static char* read_file(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -153,6 +156,60 @@ static int cmd_check(const char* file) {
     return rc;
 }
 
+static int cmd_build(const char* file) {
+    // 1. Parse via C backend -> write .c file
+    char c_path[1024], out_path[1024];
+    snprintf(c_path, sizeof(c_path), "%s.c", file);
+    // Output binary: strip .kds extension
+    size_t fl = strlen(file);
+    if (fl > 4 && strcmp(file + fl - 4, ".kds") == 0) {
+        snprintf(out_path, sizeof(out_path), "%.*s", (int)(fl - 4), file);
+    } else {
+        snprintf(out_path, sizeof(out_path), "%s.out", file);
+    }
+    printf("  [1/3] Transpiling %s -> %s\n", file, c_path);
+    int rc = codegen_c_emit_file(file, c_path);
+    if (rc != 0) {
+        fprintf(stderr, "  ✗ code generation failed (program uses features beyond C subset; falling back to interpreter)\n");
+        return cmd_run(file);
+    }
+    // 2. Locate a C compiler (simple PATH probe via --version check)
+    char cc_path[256] = {0};
+    const char* cands[] = {"gcc", "clang", "cc", NULL};
+    for (int i = 0; cands[i]; i++) {
+        char testcmd[128];
+        snprintf(testcmd, sizeof(testcmd), "%s --version >/dev/null 2>&1", cands[i]);
+        if (system(testcmd) == 0) { snprintf(cc_path, sizeof(cc_path), "%s", cands[i]); break; }
+    }
+#if defined(_WIN32)
+    if (cc_path[0] == 0) {
+        if (system("where cl >nul 2>nul") == 0) snprintf(cc_path, sizeof(cc_path), "cl");
+    }
+#endif
+    if (cc_path[0] == 0) {
+        fprintf(stderr, "  ✗ no C compiler found (gcc/clang/cc/cl required) — falling back to interpreter\n");
+        return cmd_run(file);
+    }
+    printf("  [2/3] Compiling %s -> %s (using %s)\n", c_path, out_path, cc_path);
+    char cmd[2048];
+    if (strcmp(cc_path, "cl") == 0) {
+        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /Fe%s \"%s\"", out_path, c_path);
+    } else {
+        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 \"%s\" -o \"%s\" -lm", cc_path, c_path, out_path);
+    }
+    rc = system(cmd);
+    if (rc != 0) {
+        fprintf(stderr, "  ✗ C compilation failed (rc=%d)\n", rc);
+        return rc;
+    }
+    // 3. Run the produced binary
+    printf("  [3/3] Running %s\n", out_path);
+    printf("  ----------\n");
+    fflush(stdout);
+    snprintf(cmd, sizeof(cmd), "\"%s\"", out_path);
+    return system(cmd);
+}
+
 static int cmd_ast(const char* file) {
     char* source = read_file(file);
     if (!source) return 1;
@@ -187,8 +244,7 @@ int main(int argc, char** argv) {
     }
     if (strcmp(cmd, "build") == 0) {
         if (argc < 3) { fprintf(stderr, "Usage: kodas build <file>\n"); return 1; }
-        printf("Note: native compilation not yet available in seed; running in interpreter.\n");
-        return cmd_run(argv[2]);
+        return cmd_build(argv[2]);
     }
     if (strcmp(cmd, "check") == 0) {
         if (argc < 3) { fprintf(stderr, "Usage: kodas check <file>\n"); return 1; }

@@ -21,7 +21,7 @@
 - [x] Error handling (ok/err, give err)
 - [x] Built-in functions (show, print, len, push, sqrt, input, read_file, write_file, ...)
 - [x] Test blocks (test "..." { ... })
-- [x] CLI (run, check, tokens, ast, repl, version, help)
+- [x] CLI (run, check, tokens, ast, build, repl, version, help)
 - [ ] Float literals (scientific notation) - partially done
 - [ ] Char literals - lexer done
 - [ ] Raw strings r"..." - lexer token defined
@@ -58,7 +58,7 @@
 - [ ] codegen_llvm.c (LLVM IR backend)
 - [ ] codegen_wasm.c (WebAssembly backend)
 - [ ] codegen_js.c (JavaScript transpilation)
-- [ ] codegen_c.c (C transpilation fallback)
+- [x] codegen_c.c (C transpilation fallback — working subset: fn/let/if/while/give/recursion/arith/show/assert; auto-invokes gcc/clang)
 
 ## Phase 3: Self-Hosting
 - [ ] self/compiler/lexer.kds

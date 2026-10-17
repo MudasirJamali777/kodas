@@ -1,0 +1,31 @@
+-- build_test.kds - Tests the C backend produces correct native output
+-- Runs via interpreter, but also compiles correctly with `kodas build`.
+fn fib(n) {
+  if n <= 1 { give n }
+  give fib(n - 1) + fib(n - 2)
+}
+
+fn fact(n) {
+  if n <= 1 { give 1 }
+  give n * fact(n - 1)
+}
+
+fn main() {
+  assert(fib(0) == 0)
+  assert(fib(1) == 1)
+  assert(fib(10) == 55)
+  assert(fact(0) == 1)
+  assert(fact(5) == 120)
+  assert(fact(10) == 3628800)
+
+  let sum = 0
+  let i = 1
+  loop while i <= 100 {
+    sum = sum + i
+    i = i + 1
+  }
+  assert(sum == 5050)
+
+  show "Build tests passed!"
+  give 0
+}
