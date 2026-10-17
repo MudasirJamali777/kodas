@@ -31,3 +31,11 @@ node_modules/
 # Temp files
 *.tmp
 *.log
+.vs/
+*.sqlite
+build/
+seed/kodas
+seed/kodas_dbg
+seed/*.pdb
+seed/*.ilk
+seed/*.exe

@@ -3,6 +3,10 @@
   "WorkspaceRootPath": "D:\\Kodas\\",
   "Documents": [
     {
+      "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Kodas\\docs\\cookbook.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}",
+      "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:docs\\cookbook.md||{EFC0BB08-EA7D-40C6-A696-C870411A895B}"
+    },
+    {
       "AbsoluteMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|D:\\Kodas\\tests\\math.kds||{8B382828-6202-11D1-8870-0000F87579D2}",
       "RelativeMoniker": "D:0:0:{A2FE74E1-B743-11D0-AE1A-00A0C90FFFC3}|\u003CMiscFiles\u003E|solutionrelative:tests\\math.kds||{8B382828-6202-11D1-8870-0000F87579D2}"
     }
@@ -23,12 +27,25 @@
             {
               "$type": "Document",
               "DocumentIndex": 0,
+              "Title": "cookbook.md",
+              "DocumentMoniker": "D:\\Kodas\\docs\\cookbook.md",
+              "RelativeDocumentMoniker": "docs\\cookbook.md",
+              "ToolTip": "D:\\Kodas\\docs\\cookbook.md",
+              "RelativeToolTip": "docs\\cookbook.md",
+              "ViewState": "AgIAADkAAAAAAAAAAAAAAAsAAAAAAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001818|",
+              "WhenOpened": "2026-10-15T15:36:19.819Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 1,
               "Title": "math.kds",
               "DocumentMoniker": "D:\\Kodas\\tests\\math.kds",
               "RelativeDocumentMoniker": "tests\\math.kds",
               "ToolTip": "D:\\Kodas\\tests\\math.kds",
               "RelativeToolTip": "tests\\math.kds",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAQAAAAXAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.001001|",
               "WhenOpened": "2026-10-13T15:47:10.791Z",
               "EditorCaption": ""
