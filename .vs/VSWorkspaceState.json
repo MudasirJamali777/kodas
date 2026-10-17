@@ -1,0 +1,20 @@
+{
+  "OutputFoldersPerTargetSystem": {
+    "Local Machine": [
+      "build\\win-x64-debug",
+      "build\\win-x64-release"
+    ]
+  },
+  "ExpandedNodes": [
+    "",
+    "\\.github",
+    "\\.github\\ISSUE_TEMPLATE",
+    "\\docs",
+    "\\seed",
+    "\\seed\\src",
+    "\\vscode-extension",
+    "\\vscode-extension\\snippets"
+  ],
+  "SelectedNode": "\\vscode-extension\\snippets\\kodas.json",
+  "PreviewInSolutionExplorer": false
+}
