@@ -1,33 +1,164 @@
-# Build artifacts
+# =============================================================================
+# Kodas language — .gitignore
+# =============================================================================
+
+# ---- Build artifacts (seed compiler) ----------------------------------------
 seed/kodas
 seed/kodas.exe
+seed/kodas_dbg
+seed/kodas_dbg.exe
 seed/*.o
+seed/*.obj
 seed/src/*.o
+seed/src/*.obj
+seed/src/codegen/*.o
+seed/src/codegen/*.obj
+seed/src/*.asm
 *.o
 *.obj
 *.a
 *.so
+*.so.*
 *.dylib
 *.dll
+*.lib
+*.exp
+*.pdb
+*.ilk
+*.i*   # .idb, .ipch etc. from MSVC
+*.exe
+!tests/**/*.exe    # (none expected, but leave room)
 
-# IDE
-.idea/
+# ---- Kodas C backend temporary output ---------------------------------------
+# `kodas build foo.kds` emits foo.kds.c and a sibling binary
+*.kds.c
+*.kds.o
+*.kds.exe
+*.kds.out
+
+# ---- CMake / build directories ----------------------------------------------
+build/
+build-*/
+cmake-build-*/
+out/
+dist/
+target/
+bin/
+lib/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+compile_commands.json
+install_manifest.txt
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.sln
+!Kodas.sln        # keep the committed solution if present (uncomment if you want)
+*.VC.db
+*.VC.db-wal
+*.VC.db-shm
+*.VC.opendb
+Browse.VC.db
+Browse.VC.db-wal
+Browse.VC.db-shm
+SemanticSymbols.db
+Solution.VC.opendb
+.ipch/
+.vs/
 .vscode/
+.idea/
+*.user
+*.suo
+*.userprefs
+
+# ---- Dependency / package manager caches ------------------------------------
+node_modules/
+vendor/
+.parcel-cache
+.next
+.nuxt
+.output
+.venv
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.nox
+.tox
+.turbo
+target/
+*.class
+*.jar
+*.war
+
+# ---- Rust (kargo/) ----------------------------------------------------------
+kargo/target/
+Cargo.lock.bak
+
+# ---- Testing / coverage -----------------------------------------------------
+coverage/
+*.gcda
+*.gcno
+*.gcov
+*.lcov
+htmlcov/
+
+# ---- IDE / editor -----------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
 *.swp
 *.swo
 *~
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+.atom/
+*.iml
+.project
+.classpath
+.settings/
 
-# OS
+# ---- OS ---------------------------------------------------------------------
 .DS_Store
+.AppleDouble
+.LSOverride
+._*
 Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
 
-# Build
-build/
-dist/
-out/
-target/
-node_modules/
-
-# Temp files
+# ---- Temp / logs ------------------------------------------------------------
 *.tmp
+*.temp
+*.bak
+*.old
+*.orig
+*.rej
 *.log
+*.stackdump
+core
+core.*
+vgcore.*
+
+# ---- Local env / secrets ----------------------------------------------------
+.env
+.env.local
+.env.*.local
+.netrc
+.git-credentials
+*.pem
+*.key
+
+# ---- Sandbox / Arena snapshot dirs ------------------------------------------
+.arena/
