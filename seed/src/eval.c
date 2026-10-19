@@ -823,10 +823,29 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
             Value tgt = eval_expr(ev, env, e->as.compound.target);
             Value result;
             if (strcmp(e->as.compound.op, "=") == 0) result = value_copy(v);
+            else if (e->as.compound.target->kind == EXPR_IDENT &&
+                     tgt.kind == VAL_STRING && strcmp(e->as.compound.op, "+") == 0 && v.kind == VAL_STRING) {
+                // string += concatenation
+                int tl = (int)strlen(tgt.as.str->data);
+                int vl = (int)strlen(v.as.str->data);
+                char* buf = kodas_malloc(tl + vl + 1);
+                memcpy(buf, tgt.as.str->data, tl);
+                memcpy(buf + tl, v.as.str->data, vl);
+                buf[tl + vl] = '\0';
+                result = val_string_take(buf);
+            }
             else result = numeric_binary(ev, tgt, e->as.compound.op, v);
-            // Write back if target is ident
+            // Write back to identifier
             if (e->as.compound.target->kind == EXPR_IDENT) {
                 env_assign(env, e->as.compound.target->as.str_val, value_copy(result));
+            }
+            // Write back to field: obj.field = result
+            else if (e->as.compound.target->kind == EXPR_FIELD) {
+                Value obj = eval_expr(ev, env, e->as.compound.target->as.field.object);
+                if (obj.kind == VAL_STRUCT_INST && e->as.compound.target->as.field.field) {
+                    struct_set(&obj, e->as.compound.target->as.field.field, value_copy(result));
+                }
+                value_free(&obj);
             }
             value_free(&tgt); value_free(&v);
             return result;
@@ -962,6 +981,25 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             return val_null();
         }
         case STMT_LET: {
+            if (stmt->as.let_s.is_destruct) {
+                Value v = stmt->as.let_s.value ? eval_expr(ev, env, stmt->as.let_s.value) : val_null();
+                if (ev->had_error) return val_null();
+                // Unpack tuple/list
+                int cnt = stmt->as.let_s.destruct_count;
+                for (int i = 0; i < cnt; i++) {
+                    if (!stmt->as.let_s.names[i]) continue; // wildcard _
+                    Value elem = val_null();
+                    if ((v.kind == VAL_TUPLE || v.kind == VAL_LIST) && v.as.list && i < v.as.list->count) {
+                        elem = value_copy(v.as.list->items[i]);
+                    } else if (i == 0) {
+                        // Single value and one binding — bind directly
+                        elem = value_copy(v);
+                    }
+                    env_define(env, stmt->as.let_s.names[i], elem, stmt->as.let_s.muts[i]);
+                }
+                value_free(&v);
+                return val_null();
+            }
             Value v = stmt->as.let_s.value ? eval_expr(ev, env, stmt->as.let_s.value) : val_null();
             env_define(env, stmt->as.let_s.name, value_copy(v), stmt->as.let_s.is_mut);
             return v;

@@ -162,3 +162,4 @@ vgcore.*
 
 # ---- Sandbox / Arena snapshot dirs ------------------------------------------
 .arena/
+kodas-sprint3-patch.tar.gz

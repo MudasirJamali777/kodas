@@ -26,9 +26,9 @@
 - [ ] Char literals - lexer done
 - [ ] Raw strings r"..." - lexer token defined
 - [ ] Multiline strings """...""" - lexer token defined
-- [ ] Compound assignments (+=, -=, etc.) - parser support added
-- [ ] Default parameters
-- [ ] Multiple return values (tuples)
+- [x] Compound assignments (+=, -=, *=, /=, %=, string +=, field targets)
+- [x] Default parameters
+- [x] Multiple return values (tuples + let-destructuring with wildcards/mut/swapping)
 - [x] Behave methods (full method dispatch, self/mut self/static ctors)
 - [x] Traits (trait definitions, impl Trait for Type blocks, default methods, duck-typed dispatch)
 - [x] Enums with payload (single + multi-payload, pattern matching)

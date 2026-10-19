@@ -1446,21 +1446,51 @@ static Stmt* parse_declaration(Parser* p) {
         case TOK_LET: {
             advance_tok(p);
             bool is_mut = match_tok(p, TOK_MUT);
-            Token* name_t = consume(p, TOK_IDENT, "expected variable name");
             s = stmt_new(STMT_LET, loc);
-            s->as.let_s.name = kodas_strndup(name_t->start, name_t->length);
+            s->as.let_s.name = NULL;
             s->as.let_s.is_mut = is_mut;
             s->as.let_s.is_pub = is_pub;
             s->as.let_s.type = NULL;
-            if (match_tok(p, TOK_COLON)) {
-                s->as.let_s.type = parse_type(p);
+            s->as.let_s.value = NULL;
+            s->as.let_s.is_destruct = false;
+            s->as.let_s.names = NULL;
+            s->as.let_s.muts = NULL;
+            s->as.let_s.destruct_count = 0;
+
+            if (is_at(p, TOK_LPAREN)) {
+                // Destructuring: let (a, mut b, _) = expr
+                advance_tok(p);
+                s->as.let_s.is_destruct = true;
+                int cap = 4;
+                s->as.let_s.names = kodas_calloc(cap, sizeof(char*));
+                s->as.let_s.muts = kodas_calloc(cap, sizeof(bool));
+                int cnt = 0;
+                if (!check(p, TOK_RPAREN)) {
+                    do {
+                        if (cnt >= cap) { cap *= 2; s->as.let_s.names = kodas_realloc(s->as.let_s.names, cap*sizeof(char*)); s->as.let_s.muts = kodas_realloc(s->as.let_s.muts, cap*sizeof(bool)); }
+                        bool m = match_tok(p, TOK_MUT) || is_mut;
+                        if (match_tok(p, TOK_UNDERSCORE)) {
+                            s->as.let_s.names[cnt] = NULL; // wildcard
+                        } else {
+                            Token* nt = consume(p, TOK_IDENT, "expected name in destructuring pattern");
+                            s->as.let_s.names[cnt] = kodas_strndup(nt->start, nt->length);
+                        }
+                        s->as.let_s.muts[cnt] = m;
+                        cnt++;
+                    } while (match_tok(p, TOK_COMMA));
+                }
+                s->as.let_s.destruct_count = cnt;
+                consume(p, TOK_RPAREN, "expected ')' in destructuring pattern");
+            } else {
+                Token* name_t = consume(p, TOK_IDENT, "expected variable name");
+                s->as.let_s.name = kodas_strndup(name_t->start, name_t->length);
+                if (match_tok(p, TOK_COLON)) {
+                    s->as.let_s.type = parse_type(p);
+                }
             }
             if (match_tok(p, TOK_EQ)) {
                 s->as.let_s.value = parse_expr(p);
-            } else {
-                s->as.let_s.value = NULL;
             }
-            // Destructuring: let (a, b) = ...
             break;
         }
         case TOK_SEAL: {

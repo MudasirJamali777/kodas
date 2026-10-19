@@ -1,0 +1,59 @@
+-- tuple_test.kds - Multiple return values (tuples) and destructuring
+
+fn pair(a, b) { give (a, b) }
+
+-- Simple destructuring
+let (x, y) = pair(10, 20)
+assert(x == 10)
+assert(y == 20)
+
+-- Triple
+fn triple(a, b, c) { give (a, b, c) }
+let (p, q2, r2) = triple(1, 2, 3)
+assert(p == 1)
+assert(q2 == 2)
+assert(r2 == 3)
+
+-- Wildcard _ in destructuring
+let (_, middle, _) = (100, 42, 200)
+assert(middle == 42)
+
+-- Mut destructuring
+let mut (a, b) = (5, 7)
+a += 10
+b += 20
+assert(a == 15)
+assert(b == 27)
+
+-- Tuple literals
+let t = (1, 2, 3, 4)
+
+-- Swapping via tuples
+let mut s1 = 100
+let mut s2 = 200
+let (s1, s2) = (s2, s1)
+assert(s1 == 200)
+assert(s2 == 100)
+
+-- Multi-return for coordinate transforms
+fn to_polar(x: Float, y: Float) {
+  let r_sq = x * x + y * y
+  -- return (sqrt(r_sq), 0.0) -- approximate
+  give (r_sq, 0.0)
+}
+let (rsq, _angle) = to_polar(3.0, 4.0)
+assert(rsq == 25.0)
+
+-- Tuple of mixed types
+let mixed = (42, "hi", true)
+assert(mixed[0] == 42)
+assert(mixed[2] == true)
+
+show "  [ok] tuple literals"
+show "  [ok] let (a,b) destructuring"
+show "  [ok] multiple return values from functions"
+show "  [ok] wildcard _ in destructuring"
+show "  [ok] mut bindings in destructuring"
+show "  [ok] tuple indexing"
+show "  [ok] swapping via tuple destructuring"
+show "=== tuple/multi-return tests passed ==="

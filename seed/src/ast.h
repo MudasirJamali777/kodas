@@ -214,7 +214,18 @@ struct Stmt {
     Location loc;
     union {
         Expr* expr;
-        struct { char* name; bool is_mut; TypeNode* type; Expr* value; bool is_pub; } let_s;
+        struct {
+            char* name;
+            bool is_mut;
+            TypeNode* type;
+            Expr* value;
+            bool is_pub;
+            // Destructuring: let (a, b, c) = value
+            bool is_destruct;
+            char** names;       // array of names (NULL for wildcards)
+            bool* muts;
+            int destruct_count;
+        } let_s;
         struct { char* name; bool is_pub; } seal_s;
         struct {
             char* name;

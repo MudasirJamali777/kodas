@@ -1,0 +1,54 @@
+-- defaults_test.kds - Default parameter values
+
+fn greet(name: String = "World", greeting: String = "Hello") -> String {
+  give greeting + ", " + name + "!"
+}
+
+assert(greet() == "Hello, World!", "all defaults")
+assert(greet("Alice") == "Hello, Alice!", "override first")
+assert(greet("Bob", "Hi") == "Hi, Bob!", "override both")
+
+fn power(base: Int, exp: Int = 2) -> Int {
+  let mut result = 1
+  let mut i = 0
+  loop while i < exp {
+    result *= base
+    i += 1
+  }
+  give result
+}
+
+assert(power(5) == 25, "square is default")
+assert(power(5, 3) == 125, "explicit cube")
+assert(power(2, 10) == 1024, "2^10")
+
+-- Defaults also work on methods
+struct Config { host: String, port: Int }
+behave Config {
+  fn make(host: String = "localhost", port: Int = 8080) -> Config {
+    give Config { host: host, port: port }
+  }
+}
+
+let c1 = Config.make()
+assert(c1.host == "localhost")
+assert(c1.port == 8080)
+
+let c2 = Config.make("0.0.0.0")
+assert(c2.host == "0.0.0.0")
+assert(c2.port == 8080)
+
+let c3 = Config.make("example.com", 443)
+assert(c3.host == "example.com")
+assert(c3.port == 443)
+
+-- Defaults with float/bool
+fn step(x: Float = 0.0, by: Float = 1.0) -> Float { give x + by }
+assert(step() == 1.0)
+assert(step(5.0) == 6.0)
+assert(step(5.0, 2.5) == 7.5)
+
+show "  [ok] default params on standalone functions"
+show "  [ok] default params on static methods (behave)"
+show "  [ok] defaults with int, float, string types"
+show "=== default parameter tests passed ==="
