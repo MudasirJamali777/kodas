@@ -1,0 +1,42 @@
+-- generics_test.kds - Generic types [T] (duck-typed at runtime)
+
+struct Stack[T] { items: List }
+behave Stack {
+  fn make() -> Stack { give Stack { items: [] } }
+  fn push(mut self, item: T) { self.items.push(item) }
+  fn pop(mut self) -> T { give self.items.pop() }
+  fn size(self) -> Int { give self.items.len() }
+}
+
+-- Int stack
+let si = Stack.make()
+si.push(10)
+si.push(20)
+si.push(30)
+assert(si.size() == 3)
+assert(si.pop() == 30)
+assert(si.size() == 2)
+
+-- String stack (same generic struct, duck typed)
+let ss = Stack.make()
+ss.push("hello")
+ss.push("world")
+assert(ss.size() == 2)
+assert(ss.pop() == "world")
+
+-- Generic pair fn (parametric via duck typing)
+fn first(p) { give p[0] }
+let pair = (42, "hi")
+assert(first(pair) == 42)
+
+-- Generic map over list
+fn double(x) { give x * 2 }
+let xs = [1, 2, 3].map(double)
+assert(xs.len() == 3)
+assert(xs[0] == 2)
+
+show "  [ok] generic struct Stack[T] with ints"
+show "  [ok] generic struct Stack[T] with strings"
+show "  [ok] duck-typed generic functions"
+show "  [ok] generic map higher-order fn"
+show "=== generics tests passed ==="
