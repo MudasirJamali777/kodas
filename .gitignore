@@ -55,11 +55,11 @@ install_manifest.txt
 *.vcxproj.filters
 *.vcxproj.user
 *.sln
-!Kodas.sln        # keep the committed solution if present (uncomment if you want)
-*.vc.C.db
-*.vc.db-wal
-*.vc.db-shm
-*.vc.opendb
+!Kodas.sln        
+*.VC.db
+*.VC.db-wal
+*.VC.db-shm
+*.VC.opendb
 Browse.VC.db
 Browse.VC.db-wal
 Browse.VC.db-shm
