@@ -22,27 +22,27 @@
 - [x] Built-in functions (show, print, len, push, sqrt, input, read_file, write_file, ...)
 - [x] Test blocks (test "..." { ... })
 - [x] CLI (run, check, tokens, ast, build, repl, version, help)
-- [x] Float literals (scientific notation) - partially done
-- [x] Char literals - lexer done
-- [x] Raw strings r"..." - lexer token defined
-- [x] Multiline strings """...""" - lexer token defined
+- [ ] Float literals (scientific notation) - partially done
+- [ ] Char literals - lexer done
+- [ ] Raw strings r"..." - lexer token defined
+- [ ] Multiline strings """...""" - lexer token defined
 - [x] Compound assignments (+=, -=, *=, /=, %=, string +=, field targets)
 - [x] Default parameters
 - [x] Multiple return values (tuples + let-destructuring with wildcards/mut/swapping)
 - [x] Behave methods (full method dispatch, self/mut self/static ctors)
 - [x] Traits (trait definitions, impl Trait for Type blocks, default methods, duck-typed dispatch)
 - [x] Enums with payload (single + multi-payload, pattern matching)
-- [x] Generics [T], [T: Trait] (duck-typed; monomorphization deferred to self-host)
+- [ ] Generics [T], [T: Trait]
 - [x] maybe T + empty (empty keyword + Option-style enum pattern matching)
 - [x] |>, |?> pipe operators (forward + error pipe with short-circuit)
 - [x] otherwise / demand (`x otherwise default`, `x demand` for Result/maybe)
-- [x] flow / together / timeout concurrency (keywords parsed; thread-pool deferred)
-- [x] Channel[T] (keyword parsed; type stub)
-- [x] bridge blocks (parsed; single-file seed skips)
-- [x] import / module (parsed; single-file seed skips)
-- [x] bench blocks (real timing via clock_gettime)
-- [x] contract blocks (parsed; asserts inline)
-- [x] @decorators (parsed; attached but unused in seed)
+- [ ] flow / together / timeout concurrency
+- [ ] Channel[T]
+- [ ] bridge blocks
+- [ ] import / module
+- [ ] bench blocks
+- [ ] contract blocks
+- [ ] @decorators
 - [ ] Operator overloading
 - [ ] List/map/set comprehensions
 - [ ] Lambda short form with _

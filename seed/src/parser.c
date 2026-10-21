@@ -59,9 +59,8 @@ static void synchronize(Parser* p) {
         switch (peek_tok(p)->kind) {
             case TOK_FN: case TOK_LET: case TOK_SEAL: case TOK_STRUCT: case TOK_ENUM:
             case TOK_IF: case TOK_LOOP: case TOK_MATCH: case TOK_SHOW: case TOK_TEST:
-            case TOK_BENCH: case TOK_CONTRACT:
             case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_IMPORT: case TOK_MODULE:
-            case TOK_BRIDGE: case TOK_RETURN: case TOK_FLOW: case TOK_TOGETHER:
+            case TOK_BRIDGE: case TOK_RETURN:
                 return;
             default: advance_tok(p);
         }

@@ -161,23 +161,7 @@ static TokenKind ident_type(Lexer* lex) {
             break;
         case 'b':
             if (strcmp(buf, "behave") == 0) return TOK_BEHAVE;
-            if (strcmp(buf, "bench") == 0) return TOK_BENCH;
             if (strcmp(buf, "bridge") == 0) return TOK_BRIDGE;
-            break;
-        case 'f':
-            if (strcmp(buf, "false") == 0) return TOK_FALSE;
-            if (strcmp(buf, "fn") == 0) return TOK_FN;
-            if (strcmp(buf, "for") == 0) return TOK_FOR;
-            if (strcmp(buf, "flow") == 0) return TOK_FLOW;
-            break;
-        case 't':
-            if (strcmp(buf, "test") == 0) return TOK_TEST;
-            if (strcmp(buf, "then") == 0) return TOK_THEN;
-            if (strcmp(buf, "timeout") == 0) return TOK_TIMEOUT;
-            if (strcmp(buf, "together") == 0) return TOK_TOGETHER;
-            if (strcmp(buf, "trait") == 0) return TOK_TRAIT;
-            if (strcmp(buf, "type") == 0) return TOK_TYPE_KW;
-            if (strcmp(buf, "true") == 0) return TOK_TRUE;
             break;
         case 'c':
             if (strcmp(buf, "Channel") == 0) return TOK_CHANNEL;
@@ -191,6 +175,12 @@ static TokenKind ident_type(Lexer* lex) {
             if (strcmp(buf, "empty") == 0) return TOK_EMPTY;
             if (strcmp(buf, "err") == 0) return TOK_ERR;
             if (strcmp(buf, "enum") == 0) return TOK_ENUM;
+            break;
+        case 'f':
+            if (strcmp(buf, "fn") == 0) return TOK_FN;
+            if (strcmp(buf, "false") == 0) return TOK_FALSE;
+            if (strcmp(buf, "flow") == 0) return TOK_FLOW;
+            if (strcmp(buf, "for") == 0) return TOK_FOR;
             break;
         case 'g':
             if (strcmp(buf, "give") == 0) return TOK_GIVE;
@@ -237,6 +227,15 @@ static TokenKind ident_type(Lexer* lex) {
             if (strcmp(buf, "skip") == 0) return TOK_SKIP;
             if (strcmp(buf, "stop") == 0) return TOK_STOP;
             if (strcmp(buf, "struct") == 0) return TOK_STRUCT;
+            break;
+        case 't':
+            if (strcmp(buf, "test") == 0) return TOK_TEST;
+            if (strcmp(buf, "then") == 0) return TOK_THEN;
+            if (strcmp(buf, "timeout") == 0) return TOK_TIMEOUT;
+            if (strcmp(buf, "together") == 0) return TOK_TOGETHER;
+            if (strcmp(buf, "trait") == 0) return TOK_TRAIT;
+            if (strcmp(buf, "type") == 0) return TOK_TYPE_KW;
+            if (strcmp(buf, "true") == 0) return TOK_TRUE;
             break;
         case 'u':
             if (strcmp(buf, "use") == 0) return TOK_USE;

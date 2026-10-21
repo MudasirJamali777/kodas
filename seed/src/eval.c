@@ -396,29 +396,14 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
             Value callee = val_null();
             bool found = false;
             char method_key[256];
-            const char* m = e->as.method_call.method;
-            (void)m;
-
             if (type_name) {
                 snprintf(method_key, sizeof(method_key), "%s.%s", type_name, e->as.method_call.method);
                 Value* fn = env_lookup(ev->globals, method_key);
                 if (fn) { callee = value_copy(*fn); found = true; }
             }
             if (!found) {
-                // Don't fall back to global len/push when called as method on collections
-                bool skip_global = false;
-                const char* mm = e->as.method_call.method;
-                if (obj.kind == VAL_LIST || obj.kind == VAL_TUPLE || obj.kind == VAL_STRING || obj.kind == VAL_MAP) {
-                    if (strcmp(mm, "len") == 0 || strcmp(mm, "push") == 0 || strcmp(mm, "pop") == 0
-                        || strcmp(mm, "map") == 0 || strcmp(mm, "filter") == 0 || strcmp(mm, "reduce") == 0
-                        || strcmp(mm, "join") == 0 || strcmp(mm, "has") == 0 || strcmp(mm, "get") == 0
-                        || strcmp(mm, "contains") == 0 || strcmp(mm, "trim") == 0 || strcmp(mm, "split") == 0
-                        || strcmp(mm, "replace") == 0) skip_global = true;
-                }
-                if (!skip_global) {
-                    Value* fn = env_lookup(ev->globals, e->as.method_call.method);
-                    if (fn) { callee = value_copy(*fn); found = true; }
-                }
+                Value* fn = env_lookup(ev->globals, e->as.method_call.method);
+                if (fn) { callee = value_copy(*fn); found = true; }
             }
 
             // Build default argv: [obj, arg1, arg2, ...] for instance builtins
@@ -458,19 +443,13 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
                 }
                 result = eval_call(ev, env, callee, call_argc, call_argv);
             } else {
-                // First try builtin functions as methods
+                // Try builtin functions as methods (e.g. xs.push(4) -> push(xs, 4))
                 Value* bf = env_lookup(ev->globals, e->as.method_call.method);
-                const char* m = e->as.method_call.method;
-                // Shortcuts for zero-arg builtin methods
-                if (strcmp(m, "len") == 0 && argc == 0) {
-                    if (obj.kind == VAL_STRING) result = val_int((int64_t)strlen(obj.as.str->data));
-                    else if (obj.kind == VAL_LIST || obj.kind == VAL_TUPLE) result = val_int((int64_t)obj.as.list->count);
-                    else if (obj.kind == VAL_MAP) result = val_int((int64_t)obj.as.map->count);
-                    else if (bf && bf->kind == VAL_NATIVE) result = eval_call(ev, env, value_copy(*bf), argc + 1, argv);
-                    else { runtime_error(ev, "len() not supported on this type"); result = val_null(); }
-                } else if (bf && bf->kind == VAL_NATIVE) {
+                if (bf && bf->kind == VAL_NATIVE) {
                     result = eval_call(ev, env, value_copy(*bf), argc + 1, argv);
                 } else if (obj.kind == VAL_LIST) {
+                    // High-order list methods that need closures
+                    const char* m = e->as.method_call.method;
                     if (strcmp(m, "map") == 0 && argc >= 1) {
                         Value mapped = val_list();
                         for (int i = 0; i < obj.as.list->count; i++) {
@@ -518,12 +497,6 @@ Value eval_expr(Evaluator* ev, Environment* env, Expr* e) {
                         result = val_string_take(buf);
                     } else if (strcmp(m, "len") == 0) {
                         result = val_int((int64_t)obj.as.list->count);
-                    } else if (strcmp(m, "push") == 0 && argc >= 1) {
-                        list_push(&obj, value_copy(argv[1]));
-                        result = value_copy(argv[1]);
-                    } else if (strcmp(m, "pop") == 0 && argc == 0) {
-                        if (obj.as.list->count == 0) { runtime_error(ev, "pop from empty list"); result = val_null(); }
-                        else result = value_copy(obj.as.list->items[--obj.as.list->count]);
                     } else {
                         runtime_error(ev, "unknown list method '%s'", m);
                         result = val_null();
