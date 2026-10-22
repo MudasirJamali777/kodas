@@ -1,21 +1,19 @@
 -- core/time.kds - Time and duration
 
-struct Duration { nanoseconds: Int }
-struct DateTime { unix_seconds: Int, nanoseconds: Int }
+fn seconds(n) => n
+fn millis(n) => n / 1000.0
+fn minutes(n) => n * 60
+fn hours(n) => n * 3600
+fn days(n) => n * 86400
 
-fn seconds(n) => Duration { nanoseconds: int(n * 1_000_000_000) }
-fn millis(n) => Duration { nanoseconds: int(n * 1_000_000) }
-fn minutes(n) => seconds(n * 60)
-fn hours(n) => seconds(n * 3600)
-fn days(n) => hours(n * 24)
+fn duration_seconds(ns) => ns / 1000000000.0
+fn duration_millis(ns) => ns / 1000000.0
 
-fn duration_seconds(d) => d.nanoseconds / 1_000_000_000
-fn duration_millis(d) => d.nanoseconds / 1_000_000
+fn unix() => clock()
 
-fn now() => DateTime { unix_seconds: int(clock()), nanoseconds: 0 }
-
-fn sleep(secs) {
-    -- In seed, this is a busy-wait stub; native backend will use proper syscall
+fn sleep_secs(secs) {
     let start = clock()
-    loop while clock() - start < secs {}
+    loop while clock() - start < secs {
+        skip
+    }
 }

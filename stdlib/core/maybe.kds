@@ -4,4 +4,7 @@ fn maybe_map(m, f) {
     if m.is_empty { give empty }
     give f(m.unwrap())
 }
-fn maybe_unwrap_or(m, default) => m.is_empty ? default : m.unwrap()
+fn maybe_unwrap_or(m, default) {
+    if m.is_empty { give default }
+    give m.unwrap()
+}
