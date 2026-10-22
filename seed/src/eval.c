@@ -17,6 +17,7 @@ typedef struct LoadedModule {
     char* source;
     Lexer* lexer;
     Program* program;
+    Environment* mod_env;
     struct LoadedModule* next;
 } LoadedModule;
 static LoadedModule* loaded_modules = NULL;
@@ -27,13 +28,14 @@ static bool module_already_loaded(const char* path) {
     return false;
 }
 
-static void mark_module_loaded(const char* path, char* src, Lexer* lex, Program* prog) {
+static void mark_module_loaded(const char* path, char* src, Lexer* lex, Program* prog, Environment* mod_env) {
     if (module_already_loaded(path)) return;
     LoadedModule* m = (LoadedModule*)kodas_calloc(1, sizeof(LoadedModule));
     m->path = kodas_strdup(path);
     m->source = src;
     m->lexer = lex;
     m->program = prog;
+    m->mod_env = mod_env;
     m->next = loaded_modules;
     loaded_modules = m;
 }
@@ -42,7 +44,8 @@ void eval_reset_modules(void) {
     LoadedModule* nxt;
     for (LoadedModule* m = loaded_modules; m; m = nxt) {
         nxt = m->next;
-        if (m->program) program_free(m->program);
+        if (m->mod_env) env_free(m->mod_env);
+        if (m->program) { program_free(m->program); free(m->program); }
         if (m->lexer) { lexer_free(m->lexer); free(m->lexer); }
         free(m->source);
         free(m->path);
@@ -125,13 +128,28 @@ void eval_free(Evaluator* ev) {
     gc_shutdown();
 }
 
-int eval_load_module(Evaluator* ev, const char* source_path, const char* module_path) {
+int eval_load_module(Evaluator* ev, const char* source_path, const char* module_path,
+                     char** select_names, int select_count) {
     char resolved[2048];
     if (!fs_resolve_module(source_path, module_path, resolved, sizeof(resolved))) {
         runtime_error(ev, "could not find module '%s'", module_path);
         return 0;
     }
-    if (module_already_loaded(resolved)) return 1;
+    if (module_already_loaded(resolved)) {
+        // Already loaded: if a selector was given, copy selected names from globals
+        // (where first import placed them).
+        if (select_names && select_count > 0) {
+            for (int i = 0; i < select_count; i++) {
+                Value* vp = env_lookup(ev->globals, select_names[i]);
+                if (!vp) {
+                    runtime_error(ev, "module '%s' has no export '%s'", module_path, select_names[i]);
+                    return 0;
+                }
+                env_define(ev->globals, select_names[i], value_copy(*vp), false);
+            }
+        }
+        return 1;
+    }
 
     char* src = fs_read_file(resolved);
     if (!src) { runtime_error(ev, "could not read module '%s' (%s)", module_path, resolved); return 0; }
@@ -154,14 +172,39 @@ int eval_load_module(Evaluator* ev, const char* source_path, const char* module_
         return 0;
     }
 
-    // Retain module AST/tokens so closures defined here stay valid.
-    mark_module_loaded(resolved, src, lex, prog);
-
+    // Evaluate module into a fresh child environment so we can selectively
+    // import names when a selector `import mod { a, b }` is given.
+    Environment* mod_env = env_new(ev->globals);
     for (Stmt* s = prog->first; s; s = s->next) {
-        Value r = eval_stmt(ev, ev->globals, s);
+        Value r = eval_stmt(ev, mod_env, s);
         value_free(&r);
         if (ev->had_error) break;
     }
+
+    if (!ev->had_error) {
+        // Copy exported names into globals.
+        if (select_names && select_count > 0) {
+            for (int i = 0; i < select_count; i++) {
+                Value* vp = env_lookup(mod_env, select_names[i]);
+                if (!vp) {
+                    runtime_error(ev, "module '%s' has no export '%s'", module_path, select_names[i]);
+                    break;
+                }
+                env_define(ev->globals, select_names[i], value_copy(*vp), false);
+            }
+        } else {
+            // Copy all definitions to globals (full import).
+            for (int i = 0; i < mod_env->count; i++) {
+                env_define(ev->globals, mod_env->names[i], value_copy(mod_env->values[i]),
+                           mod_env->mut_flags[i]);
+            }
+        }
+    }
+
+    // Retain module AST/tokens and the module environment so closures defined
+    // in the module (which closed over mod_env) remain valid. We stash mod_env
+    // on the LoadedModule record.
+    mark_module_loaded(resolved, src, lex, prog, mod_env);
 
     ev->current_file = prev_file;
     return ev->had_error ? 0 : 1;
@@ -1262,14 +1305,13 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             // Module declaration is just a name marker; real work done at file load time
             return val_null();
         case STMT_IMPORT: {
-            char resolved[2048];
             const char* cur_file = ev->current_file;
-            if (!fs_resolve_module(cur_file, stmt->as.import_s.name, resolved, sizeof(resolved))) {
-                // Allow unknown imports silently in seed (graceful fallback)
-                return val_null();
+            char** names = NULL;
+            int n = stmt->as.import_s.imports.count;
+            if (n > 0) {
+                names = (char**)stmt->as.import_s.imports.items; // already char**
             }
-            if (module_already_loaded(resolved)) return val_null();
-            eval_load_module(ev, cur_file, stmt->as.import_s.name);
+            eval_load_module(ev, cur_file, stmt->as.import_s.name, names, n);
             return val_null();
         }
         case STMT_BRIDGE:
