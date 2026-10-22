@@ -3,32 +3,7 @@
 #include <string.h>
 #include <ctype.h>
 
-static const char* keywords[] = {
-    "let", "seal", "show", "fn", "if", "else", "match",
-    "loop", "while", "in", "stop", "skip", "give", "return",
-    "struct", "enum", "behave", "trait", "impl", "is", "pub",
-    "as", "module", "import", "use", "mut", "true", "false",
-    "maybe", "empty", "ok", "err", "Result", "never", "any",
-    "flow", "together", "timeout", "Channel", "bridge", "link",
-    "test", "bench", "assert", "measure", "contract",
-    "then", "otherwise", "demand", "for",
-    "op", "self", "new", "type", "where",
-    "Bool", "Int", "Float", "String", "Char", "Byte",
-    NULL
-};
 
-static const TokenKind kw_tokens[] = {
-    TOK_LET, TOK_SEAL, TOK_SHOW, TOK_FN, TOK_IF, TOK_ELSE, TOK_MATCH,
-    TOK_LOOP, TOK_WHILE, TOK_IN, TOK_STOP, TOK_SKIP, TOK_GIVE, TOK_RETURN,
-    TOK_STRUCT, TOK_ENUM, TOK_BEHAVE, TOK_TRAIT, TOK_IMPL, TOK_IS, TOK_PUB,
-    TOK_AS, TOK_MODULE, TOK_IMPORT, TOK_USE, TOK_MUT, TOK_TRUE, TOK_FALSE,
-    TOK_MAYBE, TOK_EMPTY, TOK_OK, TOK_ERR, TOK_RESULT, TOK_NEVER, TOK_ANY,
-    TOK_FLOW, TOK_TOGETHER, TOK_TIMEOUT, TOK_CHANNEL, TOK_BRIDGE, TOK_LINK,
-    TOK_TEST, TOK_BENCH, TOK_ASSERT, TOK_MEASURE, TOK_CONTRACT,
-    TOK_THEN, TOK_OTHERWISE, TOK_DEMAND, TOK_FOR,
-    TOK_OP, TOK_SELF, TOK_NEW_KW, TOK_TYPE_KW, TOK_WHERE,
-    TOK_IDENT, TOK_IDENT, TOK_IDENT, TOK_IDENT, TOK_IDENT, TOK_IDENT,
-};
 
 void lexer_init(Lexer* lex, const char* file, const char* source) {
     memset(lex, 0, sizeof(Lexer));
@@ -130,20 +105,7 @@ static void skip_comment(Lexer* lex) {
     }
 }
 
-static TokenKind check_keyword(Lexer* lex, int offset, const char* rest, TokenKind kind) {
-    int len = (int)strlen(rest);
-    if (lex->current - lex->start == offset + len &&
-        memcmp(lex->start + offset, rest, len) == 0) {
-        return kind;
-    }
-    return TOK_IDENT;
-}
 
-static TokenKind match_kw(Lexer* lex, const char* kw, TokenKind kind) {
-    int len = (int)strlen(kw);
-    if (lex->current - lex->start == len && memcmp(lex->start, kw, len) == 0) return kind;
-    return TOK_IDENT;
-}
 
 static TokenKind ident_type(Lexer* lex) {
     int len = (int)(lex->current - lex->start);
