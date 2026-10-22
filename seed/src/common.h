@@ -1,3 +1,7 @@
+#ifndef KODAS_UNUSED
+#define KODAS_UNUSED __attribute__((unused))
+#endif
+
 /// common.h - Kodas compiler common definitions
 #ifndef KODAS_COMMON_H
 #define KODAS_COMMON_H
