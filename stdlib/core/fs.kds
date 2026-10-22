@@ -1,0 +1,17 @@
+-- core/fs.kds - Filesystem helpers (thin wrappers over native primitives)
+
+fn exists(path) {
+    -- Attempt to read; success means exists. Native backend will have proper stat().
+    let contents = read_file(path)
+    give contents != null  -- read_file returns err on failure in native backend
+}
+
+fn read_lines(path) {
+    let src = read_file(path)
+    give lines(src)
+}
+
+fn write_lines(path, lines_list) {
+    let text = join(lines_list, "\n") + "\n"
+    write_file(path, text)
+}

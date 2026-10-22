@@ -37,7 +37,8 @@ fn min(list) {
     give ok(best)
 }
 
--- Check if all elements satisfy predicate
+-- Check if all elements satisfy predicate (named `every` because `any` is a keyword;
+-- kept as canonical name; users can alias `all` locally).
 fn every(list, pred) {
     loop item in list {
         if !pred(item) { give false }
@@ -45,16 +46,13 @@ fn every(list, pred) {
     give true
 }
 
--- Check if any element satisfies predicate
+-- Check if any element satisfies predicate (named `some` to avoid keyword conflict)
 fn some(list, pred) {
     loop item in list {
         if pred(item) { give true }
     }
     give false
 }
-
--- Aliases
-
 
 -- Reverse a list
 fn reverse(list) {
@@ -84,4 +82,38 @@ fn enumerate(list) {
         result.push((i, list[i]))
     }
     give result
+}
+
+-- Reduce (foldl): reduce(list, init, fn(acc, item) => ...)
+fn reduce(list, init, f) {
+    let mut acc = init
+    loop item in list { acc = f(acc, item) }
+    give acc
+}
+
+-- Map: map(list, fn(x) => ...)
+fn map(list, f) {
+    let result = []
+    loop item in list { result.push(f(item)) }
+    give result
+}
+
+-- Filter: filter(list, fn(x) => bool)
+fn filter(list, pred) {
+    let result = []
+    loop item in list {
+        if pred(item) { result.push(item) }
+    }
+    give result
+}
+
+-- Check if list contains value
+fn contains(list, val) => some(list, fn(x) => x == val)
+
+-- Index of value in list, or -1
+fn index_of(list, val) {
+    loop i in 0..list.len {
+        if list[i] == val { give i }
+    }
+    give -1
 }

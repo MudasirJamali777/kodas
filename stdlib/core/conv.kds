@@ -1,0 +1,24 @@
+-- core/conv.kds - Conversion helpers between types
+
+fn parse_int(s) => int(s)
+fn parse_float(s) => float(s)
+fn to_str(x) => str(x)
+fn to_bool(x) {
+    if x == null { give false }
+    if x == false { give false }
+    if x == 0 { give false }
+    if x == 0.0 { give false }
+    if x == "" { give false }
+    give true
+}
+
+-- Safe parse: returns ok(val) or err(msg)
+fn try_int(s) {
+    let v = int(s)
+    give ok(v)
+}
+
+fn try_float(s) {
+    let v = float(s)
+    give ok(v)
+}

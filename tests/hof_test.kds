@@ -1,0 +1,10 @@
+-- Higher-order collection functions (map/filter/reduce)
+import core.collections
+
+let nums = [1, 2, 3, 4, 5]
+show map(nums, fn(x) => x * x)
+show filter(nums, fn(x) => x % 2 == 0)
+show reduce(nums, 0, fn(a,b) => a + b)
+show contains(nums, 3)
+show contains(nums, 99)
+show index_of(nums, 4)
