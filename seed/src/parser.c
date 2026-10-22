@@ -11,7 +11,7 @@ static void error_at(Parser* p, Token* t, const char* fmt, ...) {
     char buf[512];
     va_list args;
     va_start(args, fmt);
-    int n = vsnprintf(buf, sizeof(buf), fmt, args);
+    int n KODAS_UNUSED = vsnprintf(buf, sizeof(buf), fmt, args); (void)n;
     va_end(args);
 
     p->error_len += snprintf(p->errors + p->error_len, sizeof(p->errors) - p->error_len,
@@ -409,7 +409,7 @@ static Expr* parse_primary(Parser* p) {
             advance_tok(p);
             ExprList items = {0};
             // Check for list comprehension: [expr for x in col if cond]
-            int save = p->pos;
+            int save KODAS_UNUSED = p->pos; (void)save;
             if (!is_at(p, TOK_RBRACKET)) {
                 Expr* first = parse_expr(p);
                 expr_list_append(&items, first);
@@ -1023,7 +1023,7 @@ static ParamList parse_params(Parser* p) {
 }
 
 static Stmt* parse_fn(Parser* p, bool is_pub) {
-    Token* fn_tok = previous(p);
+    Token* fn_tok KODAS_UNUSED = previous(p);
     Location loc = prev_loc(p);
 
     // Check for operator overloading: op +(...)
@@ -1167,7 +1167,7 @@ static Stmt* parse_behave(Parser* p, bool is_pub) {
             bool pub_m = match_tok(p, TOK_PUB);
             if (match_tok(p, TOK_FN)) {
                 // Simple approach: parse function inline without moving
-                Location floc = prev_loc(p);
+                Location floc KODAS_UNUSED = prev_loc(p); (void)floc;
                 FnDecl d = {0};
                 Token* fn_name = consume(p, TOK_IDENT, "expected method name");
                 d.name = kodas_strndup(fn_name->start, fn_name->length);
@@ -1297,7 +1297,7 @@ static Stmt* parse_import(Parser* p, bool is_pub) {
         consume(p, TOK_RBRACE, "expected '}'");
     }
     if (match_tok(p, TOK_AS)) {
-        Token* alias = consume(p, TOK_IDENT, "expected alias");
+        Token* alias KODAS_UNUSED = consume(p, TOK_IDENT, "expected alias");
         // store alias info via a special name prefix? For now just keep module name
     }
     return s;

@@ -8,6 +8,7 @@
 #include "lexer.h"
 #include "parser.h"
 #include "eval.h"
+#include "fs.h"
 #include "codegen/codegen_c.h"
 
 static char* read_file(const char* path) {
@@ -104,6 +105,7 @@ static int cmd_run(const char* file) {
     } else {
         Evaluator ev;
         eval_init(&ev);
+        ev.current_file = file;
         Value result = eval_program(&ev, &prog);
         if (ev.had_error) {
             fprintf(stderr, "  ✗ %s\n", ev.error_msg);
@@ -113,7 +115,7 @@ static int cmd_run(const char* file) {
         eval_free(&ev);
     }
 
-    // Note: AST not freed to avoid double-free bugs in seed; OS reclaims on exit
+    program_free(&prog);
     lexer_free(&lex);
     free(source);
     return exit_code;
@@ -191,7 +193,7 @@ static int cmd_build(const char* file) {
         return cmd_run(file);
     }
     printf("  [2/3] Compiling %s -> %s (using %s)\n", c_path, out_path, cc_path);
-    char cmd[2048];
+    char cmd[8192];
     if (strcmp(cc_path, "cl") == 0) {
         snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /Fe%s \"%s\"", out_path, c_path);
     } else {
@@ -231,6 +233,7 @@ static int cmd_ast(const char* file) {
 }
 
 int main(int argc, char** argv) {
+    fs_set_exe_path(argv[0]);
     if (argc < 2) {
         repl();
         return 0;

@@ -97,13 +97,22 @@ void env_free(Environment* env) {
 void env_define(Environment* env, const char* name, Value value, bool is_mut) {
     for (int i = 0; i < env->count; i++) {
         if (strcmp(env->names[i], name) == 0) {
-            if (!env->mut_flags[i]) {
+            if (env->enclosing == NULL) {
+                // Top-level (module/global scope): allow redefinition via let/seal
+                // so stdlib files can override builtin constants or prior definitions
+                value_free(&env->values[i]);
+                env->values[i] = value;
+                env->mut_flags[i] = is_mut;
+                return;
+            }
+            if (!env->mut_flags[i] && env->values[i].kind != VAL_NATIVE) {
                 fprintf(stderr, "error: cannot reassign to seal '%s'\n", name);
                 value_free(&value);
                 return;
             }
             value_free(&env->values[i]);
             env->values[i] = value;
+            env->mut_flags[i] = is_mut;
             return;
         }
     }

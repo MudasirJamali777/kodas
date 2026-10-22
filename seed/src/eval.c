@@ -1,11 +1,63 @@
 /// eval.c - Kodas tree-walking interpreter
 #include "eval.h"
+#include "fs.h"
+#include "lexer.h"
+#include "parser.h"
+#pragma GCC diagnostic ignored "-Wshadow"
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
 #include <time.h>
 
+// Track loaded modules to prevent circular imports AND retain their AST
+// (closures reference AST nodes, so we can't free Program until all fns die).
+typedef struct LoadedModule {
+    char* path;
+    char* source;
+    Lexer* lexer;
+    Program* program;
+    struct LoadedModule* next;
+} LoadedModule;
+static LoadedModule* loaded_modules = NULL;
+
+static bool module_already_loaded(const char* path) {
+    for (LoadedModule* m = loaded_modules; m; m = m->next)
+        if (strcmp(m->path, path) == 0) return true;
+    return false;
+}
+
+static void mark_module_loaded(const char* path, char* src, Lexer* lex, Program* prog) {
+    if (module_already_loaded(path)) return;
+    LoadedModule* m = (LoadedModule*)kodas_calloc(1, sizeof(LoadedModule));
+    m->path = kodas_strdup(path);
+    m->source = src;
+    m->lexer = lex;
+    m->program = prog;
+    m->next = loaded_modules;
+    loaded_modules = m;
+}
+
+void eval_reset_modules(void) {
+    LoadedModule* nxt;
+    for (LoadedModule* m = loaded_modules; m; m = nxt) {
+        nxt = m->next;
+        if (m->program) program_free(m->program);
+        if (m->lexer) { lexer_free(m->lexer); free(m->lexer); }
+        free(m->source);
+        free(m->path);
+        free(m);
+    }
+    loaded_modules = NULL;
+}
+
 extern double current_time_seconds_impl(void);
+
+static void runtime_error(Evaluator* ev, const char* fmt, ...);
+static Value eval_call(Evaluator* ev, Environment* env, Value callee, int argc, Value* argv);
+static bool pattern_match(Evaluator* ev, Environment* env, Pattern* pat, Value val, Environment* binds);
+static Value numeric_binary(Evaluator* ev, Value a, const char* op, Value b);
+static Value eval_interp_string(Evaluator* ev, Environment* env, Expr* e);
 
 // ── Native constructors (struct / enum variant) ────────────────────────
 // These are stored as VAL_NATIVE with ctx pointing to a null-terminated name
@@ -69,7 +121,50 @@ void eval_init(Evaluator* ev) {
 
 void eval_free(Evaluator* ev) {
     env_free(ev->globals);
+    eval_reset_modules();
     gc_shutdown();
+}
+
+int eval_load_module(Evaluator* ev, const char* source_path, const char* module_path) {
+    char resolved[2048];
+    if (!fs_resolve_module(source_path, module_path, resolved, sizeof(resolved))) {
+        runtime_error(ev, "could not find module '%s'", module_path);
+        return 0;
+    }
+    if (module_already_loaded(resolved)) return 1;
+
+    char* src = fs_read_file(resolved);
+    if (!src) { runtime_error(ev, "could not read module '%s' (%s)", module_path, resolved); return 0; }
+
+    Lexer* lex = (Lexer*)kodas_calloc(1, sizeof(Lexer));
+    lexer_init(lex, resolved, src); lexer_tokenize(lex);
+    Parser p; parser_init(&p, resolved, lex->tokens, lex->count);
+    Program* prog = (Program*)kodas_calloc(1, sizeof(Program));
+    parser_parse(&p, prog);
+
+    const char* prev_file = ev->current_file;
+    ev->current_file = resolved;
+
+    if (p.had_error) {
+        fprintf(stderr, "%s", p.errors);
+        ev->current_file = prev_file;
+        program_free(prog); free(prog);
+        lexer_free(lex); free(lex);
+        free(src);
+        return 0;
+    }
+
+    // Retain module AST/tokens so closures defined here stay valid.
+    mark_module_loaded(resolved, src, lex, prog);
+
+    for (Stmt* s = prog->first; s; s = s->next) {
+        Value r = eval_stmt(ev, ev->globals, s);
+        value_free(&r);
+        if (ev->had_error) break;
+    }
+
+    ev->current_file = prev_file;
+    return ev->had_error ? 0 : 1;
 }
 
 static void runtime_error(Evaluator* ev, const char* fmt, ...) {
@@ -1164,9 +1259,21 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             return val_null();
         }
         case STMT_MODULE:
-        case STMT_IMPORT:
+            // Module declaration is just a name marker; real work done at file load time
+            return val_null();
+        case STMT_IMPORT: {
+            char resolved[2048];
+            const char* cur_file = ev->current_file;
+            if (!fs_resolve_module(cur_file, stmt->as.import_s.name, resolved, sizeof(resolved))) {
+                // Allow unknown imports silently in seed (graceful fallback)
+                return val_null();
+            }
+            if (module_already_loaded(resolved)) return val_null();
+            eval_load_module(ev, cur_file, stmt->as.import_s.name);
+            return val_null();
+        }
         case STMT_BRIDGE:
-            // Modules/imports are no-ops in seed (single-file execution)
+            // FFI bridge blocks are no-ops in seed
             return val_null();
         case STMT_TEST: {
             // Run test immediately
@@ -1217,6 +1324,7 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
 Value eval_program(Evaluator* ev, Program* prog) {
     Value result = val_null();
     ev->prog_first = prog->first;
+    if (!ev->current_file) ev->current_file = "<main>";
     for (Stmt* s = prog->first; s; s = s->next) {
         value_free(&result);
         result = eval_stmt(ev, ev->globals, s);

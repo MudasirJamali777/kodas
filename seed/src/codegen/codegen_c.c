@@ -64,16 +64,6 @@ static const char* c_id(const char* name) {
 static void cg_expr(CGen* g, Expr* e);
 static void cg_stmt(CGen* g, Stmt* s);
 
-static void cg_type_for_val(CGen* g, Expr* e) {
-    (void)g;
-    // Simple heuristic based on kind (not full type inference; ints become long long by default)
-    switch (e->kind) {
-        case EXPR_FLOAT: fprintf(g->out, "double"); break;
-        case EXPR_BOOL:  fprintf(g->out, "int"); break;
-        case EXPR_STRING:fprintf(g->out, "const char*"); break;
-        default:         fprintf(g->out, "long long"); break;
-    }
-}
 
 static void cg_block(CGen* g, Expr* body) {
     if (body && body->kind == EXPR_BLOCK) {
@@ -332,12 +322,6 @@ static void cg_ret_type(CGen* g, TypeNode* ret, const char* fname) {
 
 // Detect whether a fn body "gives" a value (ends with give or has give).
 // Simple heuristic: count EXPR_GIVE nodes; if any non-empty, non-void.
-static bool fn_returns_value(Expr* body) {
-    if (!body) return false;
-    // Walk simple cases; for seed we assume long long returns.
-    (void)body;
-    return true; // seed default: all fns return long long except possibly unit; we'll cast
-}
 
 static void cg_stmt(CGen* g, Stmt* s) {
     if (!s) return;
@@ -530,16 +514,18 @@ int codegen_c_emit_file(const char* source_path, const char* c_out_path) {
 
     if (p.had_error) {
         fprintf(stderr, "%s", p.errors);
+        program_free(&prog);
         lexer_free(&lex); free(src);
         return 1;
     }
 
     FILE* fout = fopen(c_out_path, "wb");
-    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); lexer_free(&lex); free(src); return 1; }
+    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); program_free(&prog); lexer_free(&lex); free(src); return 1; }
 
     CGen g; memset(&g, 0, sizeof(g)); g.out = fout;
     cg_toplevel(&g, &prog);
     fclose(fout);
+    program_free(&prog);
     lexer_free(&lex); free(src);
     return g.had_error ? 1 : 0;
 }
