@@ -1,0 +1,5 @@
+-- core/io.kds - Console & basic I/O helpers
+
+fn read_text(path) => read_file(path)
+fn write_text(path, text) => write_file(path, text)
+fn append_text(path, text) => append_file(path, text)

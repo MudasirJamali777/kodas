@@ -1,0 +1,7 @@
+-- core/os.kds - OS/environment helpers (lightweight; native backend will expand)
+
+fn args() => []       -- native backend returns real argv
+fn exit(code) => exit(code)
+
+-- Return a unix timestamp in seconds (alias)
+fn time() => clock()

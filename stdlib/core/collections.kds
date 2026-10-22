@@ -38,7 +38,7 @@ fn min(list) {
 }
 
 -- Check if all elements satisfy predicate
-fn all(list, pred) {
+fn every(list, pred) {
     loop item in list {
         if !pred(item) { give false }
     }
@@ -46,12 +46,15 @@ fn all(list, pred) {
 }
 
 -- Check if any element satisfies predicate
-fn any(list, pred) {
+fn some(list, pred) {
     loop item in list {
         if pred(item) { give true }
     }
     give false
 }
+
+-- Aliases
+
 
 -- Reverse a list
 fn reverse(list) {
@@ -77,8 +80,8 @@ fn zip(a, b) {
 -- Enumerate: returns list of (index, item) tuples
 fn enumerate(list) {
     let result = []
-    loop i, item in list {
-        result.push((i, item))
+    loop i in 0..list.len {
+        result.push((i, list[i]))
     }
     give result
 }

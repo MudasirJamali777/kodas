@@ -1274,14 +1274,31 @@ static Stmt* parse_impl(Parser* p, bool is_pub) {
     return s;
 }
 
+// Helper: consume an identifier that may also be a keyword (e.g. "maybe", "result",
+// "type", "iter" are keywords but also appear as stdlib module / field names).
+// Accepts anything token with .length > 0 (keywords and idents carry source text).
+static Token* consume_name(Parser* p, const char* msg) {
+    if (is_at(p, TOK_EOF)) {
+        error_at(p, peek_tok(p), "%s (got EOF)", msg);
+        return NULL;
+    }
+    Token* t = peek_tok(p);
+    advance_tok(p);
+    // NOTE: we accept any token here (keywords as well as identifiers) because
+    // import paths / import name lists can contain words like "maybe", "type",
+    // "result" which are also reserved keywords in Kodas. Callers should not
+    // pass through structural tokens.
+    return t;
+}
+
 static Stmt* parse_import(Parser* p, bool is_pub) {
     Location loc = prev_loc(p);
-    Token* mod = consume(p, TOK_IDENT, "expected module name");
+    Token* mod = consume_name(p, "expected module name");
     Stmt* s = stmt_new(STMT_IMPORT, loc);
     s->as.import_s.name = kodas_strndup(mod->start, mod->length);
     s->as.import_s.is_pub = is_pub;
     while (match_tok(p, TOK_DOT)) {
-        Token* part = consume(p, TOK_IDENT, "expected path part");
+        Token* part = consume_name(p, "expected path part");
         char* new_name = kodas_malloc(strlen(s->as.import_s.name) + 1 + part->length + 1);
         sprintf(new_name, "%s.%s", s->as.import_s.name, kodas_strndup(part->start, part->length));
         free(s->as.import_s.name);
@@ -1291,14 +1308,13 @@ static Stmt* parse_import(Parser* p, bool is_pub) {
         advance_tok(p);
         while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
             if (s->as.import_s.imports.count > 0) consume(p, TOK_COMMA, "expected ','");
-            Token* n = consume(p, TOK_IDENT, "expected import name");
+            Token* n = consume_name(p, "expected import name");
             name_list_append(&s->as.import_s.imports, kodas_strndup(n->start, n->length));
         }
         consume(p, TOK_RBRACE, "expected '}'");
     }
     if (match_tok(p, TOK_AS)) {
-        Token* alias KODAS_UNUSED = consume(p, TOK_IDENT, "expected alias");
-        // store alias info via a special name prefix? For now just keep module name
+        Token* alias KODAS_UNUSED = consume_name(p, "expected alias");
     }
     return s;
 }

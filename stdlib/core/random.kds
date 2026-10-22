@@ -1,0 +1,44 @@
+-- core/random.kds - Pseudo-random number utilities (simple LCG)
+
+let mut rng_state = 0
+
+fn seed_rng() {
+    rng_state = int(clock() * 1000000.0)
+    if rng_state < 0 { rng_state = -rng_state }
+    if rng_state < 2 { rng_state = rng_state + 31337 }
+}
+
+-- Simple LCG: park-miller MINSTD
+fn rng_next() {
+    if rng_state < 2 { seed_rng() }
+    rng_state = (rng_state * 48271) % 2147483647
+    give rng_state
+}
+
+fn seed(n) {
+    if n <= 0 { seed_rng() } else { rng_state = n }
+}
+
+-- Random float in [0.0, 1.0)
+fn rand_float() => float(rng_next()) / 2147483647.0
+
+-- Random int in [lo, hi] inclusive
+fn rand_int(lo, hi) => lo + int(rand_float() * float(hi - lo + 1))
+
+-- Pick a random element from a list
+fn choice(list) => list[rand_int(0, list.len - 1)]
+
+-- Shuffle a list (Fisher-Yates), returns new list
+fn shuffled(list) {
+    let out = []
+    loop item in list { out.push(item) }
+    let mut i = out.len - 1
+    loop while i > 0 {
+        let j = rand_int(0, i)
+        let tmp = out[i]
+        out[i] = out[j]
+        out[j] = tmp
+        i = i - 1
+    }
+    give out
+}

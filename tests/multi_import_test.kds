@@ -1,0 +1,16 @@
+-- Test multiple stdlib imports
+import core.strings
+import core.collections
+import core.maybe
+import core.result
+import core.iter
+import core.types
+import core.time
+import core.math
+
+show "--- multi-import test ---"
+show clamp(10, 0, 5)
+show len("hello")
+show unix()
+show reverse([1,2,3])
+show enumerate(["a","b"])

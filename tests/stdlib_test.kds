@@ -1,0 +1,62 @@
+-- Full stdlib smoke test
+import core.math
+import core.strings
+import core.collections
+import core.maybe
+import core.result
+import core.iter
+import core.types
+import core.time
+import core.io
+import core.random
+import core.os
+
+show "=== Math ==="
+show clamp(-1, 0, 10)
+show lerp(0, 100, 0.5)
+show min2(3, 7)
+show max2(3, 7)
+show sign(-42)
+
+show "=== Strings ==="
+show join(["a", "b", "c"], ",")
+show is_empty("")
+show is_not_empty("hi")
+show repeat("x", 5)
+
+show "=== Collections ==="
+show sum([1,2,3,4,5])
+show product([1,2,3,4])
+show max([3,9,1])
+show min([3,9,1])
+show reverse([1,2,3])
+show zip([1,2],["a","b"])
+show every([2,4,6], fn(x) => x % 2 == 0)
+show some([1,2,3], fn(x) => x == 2)
+
+show "=== Types ==="
+show identity("pass-through")
+show to_int("42")
+show to_float("3.14")
+show to_bool(0)
+show to_bool("hello")
+
+show "=== Time ==="
+show unix()
+show seconds(1)
+show minutes(1)
+
+show "=== IO ==="
+show read_text   -- function value
+
+show "=== OS ==="
+show time
+
+show "=== Random ==="
+seed(42)
+show rand_float()
+show rand_int(1, 100)
+show choice(["rock","paper","scissors"])
+show shuffled([1,2,3,4,5])
+
+show "=== ALL STDLIB MODULES LOADED OK ==="
