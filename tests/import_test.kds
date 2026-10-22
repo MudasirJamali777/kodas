@@ -1,0 +1,9 @@
+-- Test the new import system
+import core.math
+show E
+show PI
+show TAU
+show clamp(5,0,3)
+show sign(-7)
+show radians(180)
+show degrees(PI)

@@ -1,0 +1,9 @@
+-- Selective imports: import only what we need
+import core.math { clamp, PI, TAU }
+
+show "PI=" + str(PI)
+show "TAU=" + str(TAU)
+show "clamp(10,0,5)=" + str(clamp(10,0,5))
+
+-- E was not imported; this would error if it were accessed.
+-- show E
