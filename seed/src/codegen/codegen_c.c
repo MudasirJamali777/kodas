@@ -711,58 +711,9 @@ int codegen_c_emit_file(const char* source_path, const char* c_out_path) {
     }
 
     FILE* fout = fopen(c_out_path, "wb");
-    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); goto fail; }
-
-    memset(&g, 0, sizeof(g));
-    g.out = fout;
-
-    cg_preamble(&g);
-
-    // Forward-declare functions from all modules first (order-independent calls).
-    for (LoadedMod* m = loaded_mods; m; m = m->next) cg_emit_forward_decls(&g, m->prog);
-    cg_emit_forward_decls(&g, &prog);
-    fprintf(g.out, "\n");
-
-    // Emit stdlib module bodies in loaded order.
-    for (LoadedMod* m = loaded_mods; m; m = m->next) {
-        fprintf(g.out, "/* ---- begin module %s ---- */\n", m->path);
-        cg_emit_toplevel_decls(&g, m->prog, NULL);
-        fprintf(g.out, "/* ---- end module %s ---- */\n\n", m->path);
-    }
-
-    // Emit user program fn decls at file scope; LET/SEAL/EXPR go into main.
-    bool had_main = false;
-    for (Stmt* s = prog.first; s; s = s->next) {
-        if (s->kind == STMT_FN) {
-            if (strcmp(s->as.fn_s.name, "main") == 0) had_main = true;
-            if (is_preamble_fn(s->as.fn_s.name)) continue;
-            cg_stmt(&g, s);
-            fprintf(g.out, "\n");
-        }
-    }
-
-    if (!had_main) {
-        fprintf(g.out, "int main(int argc, char** argv) {\n");
-        fprintf(g.out, "    (void)argc; (void)argv;\n");
-        g.indent += 4;
-        for (Stmt* s = prog.first; s; s = s->next) {
-            if (s->kind == STMT_LET || s->kind == STMT_SEAL || s->kind == STMT_EXPR) {
-                cg_stmt(&g, s);
-            }
-        }
-        g.indent -= 4;
-        fprintf(g.out, "    return 0;\n}\n");
-    }
+    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); lexer_free(&lex); free(src); return 1; }
 
     fclose(fout);
-    program_free(&prog);
-    lexer_free(&lex); free(src);
-    int rc = g.had_error ? 1 : 0;
-    cg_free_modules();
-    return rc;
-
-fail:
-    program_free(&prog);
     lexer_free(&lex); free(src);
     cg_free_modules();
     return 1;
