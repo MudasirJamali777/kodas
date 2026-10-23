@@ -1,0 +1,11 @@
+-- test: C backend can compile a program that imports stdlib modules
+import core.math
+
+fn factorial(n) {
+    if n <= 1 { give 1 }
+    give n * factorial(n - 1)
+}
+
+let r = factorial(10)
+assert r == 3628800
+show "build_ok"

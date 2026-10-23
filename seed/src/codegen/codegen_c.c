@@ -9,6 +9,7 @@
 ///   - if/else, while
 ///   - show() -> printf()
 ///   - recursion (fib, factorial work)
+///   - `import core.math` / `import core.strings` etc. — inlined into the output
 ///
 /// Limitations (subset): no closures, no struct methods, no pattern matching, no lists, no enums.
 /// These will run via the interpreter for now; the C backend targets the "algorithmic core"
@@ -18,6 +19,7 @@
 #include "../ast.h"
 #include "../lexer.h"
 #include "../parser.h"
+#include "../fs.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -41,7 +43,8 @@ static void cg_p(CGen* g, const char* fmt, ...) {
     va_end(ap);
 }
 
-// Map Kodas identifiers to valid C identifiers (avoid C keywords)
+// Rewrite Kodas identifiers to C identifiers. Avoids C keywords and libm
+// collisions (where our stdlib/core/math.kds defines helpers that shadow libm).
 static const char* c_id(const char* name) {
     static const char* c_keywords[] = {
         "int","float","double","char","if","else","while","for","return","void",
@@ -52,12 +55,45 @@ static const char* c_id(const char* name) {
     };
     for (int i = 0; i < (int)(sizeof(c_keywords)/sizeof(*c_keywords)); i++) {
         if (strcmp(name, c_keywords[i]) == 0) {
-            static char buf[128];
+            static char buf[256];
             snprintf(buf, sizeof(buf), "k_%s", name);
             return buf;
         }
     }
+    // Map our math constants (defined by core/math.kds or preamble) to k_-prefixed
+    // names so they don't clash with macros like M_PI / identifiers like `E`.
+    if (strcmp(name, "PI") == 0) return "k_PI";
+    if (strcmp(name, "E") == 0)  return "k_E";
+    if (strcmp(name, "TAU") == 0) return "k_TAU";
+    if (strcmp(name, "DEG_TO_RAD") == 0) return "k_DEG_TO_RAD";
+    if (strcmp(name, "RAD_TO_DEG") == 0) return "k_RAD_TO_DEG";
     return name;
+}
+
+// Return true if fn name is provided by the C preamble (either libm or our
+// inline helpers) so we skip re-emitting it from stdlib source.
+static bool is_preamble_fn(const char* name) {
+    static const char* names[] = {
+        // libm
+        "sin","cos","tan","log","exp","floor","ceil","round","pow","sqrt","abs",
+        // math.kds replacements (provided as d_* wrappers; we #define them below)
+        "radians","degrees","sign","clamp","lerp","is_nan","is_finite",
+        NULL
+    };
+    for (int i = 0; names[i]; i++)
+        if (strcmp(name, names[i]) == 0) return true;
+    return false;
+}
+
+// Functions that return floating-point (used when inferring decl types so
+// default numeric stays long long but math helpers use double).
+
+// Return true if name is a math constant we pre-define in the C preamble so
+// we don't re-emit the definition from stdlib/core/math.kds.
+static bool is_preamble_const(const char* name) {
+    return strcmp(name, "PI") == 0 || strcmp(name, "E") == 0 ||
+           strcmp(name, "TAU") == 0 || strcmp(name, "DEG_TO_RAD") == 0 ||
+           strcmp(name, "RAD_TO_DEG") == 0;
 }
 
 // Forward decls
@@ -137,11 +173,21 @@ static void cg_expr(CGen* g, Expr* e) {
             const char* name = NULL;
             if (e->as.call.callee->kind == EXPR_IDENT) name = e->as.call.callee->as.str_val;
             if (name && strcmp(name, "show") == 0) {
-                // show(a, b, ...) -> printf with auto formatting; we do a simple multi-arg print
                 fprintf(g->out, "printf(");
                 for (int i = 0; i < e->as.call.args.count; i++) {
                     if (i > 0) fprintf(g->out, "\" \", ");
-                    cg_expr(g, e->as.call.args.items[i]);
+                    Expr* a = e->as.call.args.items[i];
+                    bool is_str = a && a->kind == EXPR_STRING;
+                    bool is_int = a && a->kind == EXPR_INT;
+                    if (is_str) {
+                        cg_expr(g, a);
+                    } else if (is_int) {
+                        fprintf(g->out, "\"%%lld\", (long long)(");
+                        cg_expr(g, a); fprintf(g->out, ")");
+                    } else {
+                        fprintf(g->out, "\"%%g\", (double)(");
+                        cg_expr(g, a); fprintf(g->out, ")");
+                    }
                     fprintf(g->out, ", ");
                 }
                 fprintf(g->out, "\"\\n\")");
@@ -153,22 +199,51 @@ static void cg_expr(CGen* g, Expr* e) {
                 fprintf(g->out, ") && (fprintf(stderr, \"Assert failed at line %%d\\n\", __LINE__), abort(), 0)))");
                 break;
             }
+            // Stubs for unsupported builtins that return 0 / no-op
             if (name && (strcmp(name, "len") == 0 || strcmp(name, "push") == 0 ||
-                         strcmp(name, "sqrt") == 0 || strcmp(name, "str") == 0 ||
-                         strcmp(name, "int") == 0 || strcmp(name, "float") == 0 ||
-                         strcmp(name, "input") == 0 || strcmp(name, "read_file") == 0 ||
-                         strcmp(name, "write_file") == 0)) {
-                // Stubs — emit as k_<name>(...) to avoid link errors for complex builtins
-                fprintf(g->out, "/* builtin %s not yet in C backend */ 0", name);
-                // But still emit args to avoid syntax errors
+                         strcmp(name, "str") == 0 || strcmp(name, "input") == 0 ||
+                         strcmp(name, "read_file") == 0 || strcmp(name, "write_file") == 0 ||
+                         strcmp(name, "append_file") == 0 || strcmp(name, "clock") == 0 ||
+                         strcmp(name, "sleep") == 0 || strcmp(name, "typename") == 0 ||
+                         strcmp(name, "ok") == 0 || strcmp(name, "err") == 0 ||
+                         strcmp(name, "keys") == 0 || strcmp(name, "values") == 0 ||
+                         strcmp(name, "split") == 0 || strcmp(name, "contains") == 0 ||
+                         strcmp(name, "chars") == 0 || strcmp(name, "lines") == 0 ||
+                         strcmp(name, "trim") == 0 || strcmp(name, "starts_with") == 0 ||
+                         strcmp(name, "ends_with") == 0 || strcmp(name, "replace") == 0 ||
+                         strcmp(name, "list_get") == 0 || strcmp(name, "list_set") == 0 ||
+                         strcmp(name, "pop") == 0 || strcmp(name, "insert") == 0 ||
+                         strcmp(name, "remove") == 0 || strcmp(name, "typeof") == 0 ||
+                         strcmp(name, "exit") == 0 || strcmp(name, "bool") == 0 ||
+                         strcmp(name, "char") == 0)) {
+                fprintf(g->out, "0 /* builtin %s */", name);
                 fprintf(g->out, "/*(");
                 for (int i = 0; i < e->as.call.args.count; i++) { if(i)fprintf(g->out,","); cg_expr(g, e->as.call.args.items[i]); }
                 fprintf(g->out, ")*/");
                 break;
             }
-            if (name && strcmp(name, "abs") == 0) { fprintf(g->out, "llabs"); }
-            else if (name && strcmp(name, "sqrt") == 0) { fprintf(g->out, "sqrt"); }
-            else if (name && strcmp(name, "pow") == 0) { fprintf(g->out, "pow"); }
+            // Numeric conversions
+            if (name && strcmp(name, "int") == 0) {
+                fprintf(g->out, "((long long)(");
+                if (e->as.call.args.count > 0) cg_expr(g, e->as.call.args.items[0]); else fprintf(g->out,"0");
+                fprintf(g->out, "))");
+                break;
+            }
+            if (name && strcmp(name, "float") == 0) {
+                fprintf(g->out, "((double)(");
+                if (e->as.call.args.count > 0) cg_expr(g, e->as.call.args.items[0]); else fprintf(g->out,"0");
+                fprintf(g->out, "))");
+                break;
+            }
+            // Math.h mappings
+            if (name && strcmp(name, "abs") == 0) { fprintf(g->out, "k_abs"); }
+            else if (name && (strcmp(name, "sqrt") == 0 || strcmp(name, "sin") == 0 ||
+                              strcmp(name, "cos") == 0 || strcmp(name, "tan") == 0 ||
+                              strcmp(name, "log") == 0 || strcmp(name, "exp") == 0 ||
+                              strcmp(name, "floor") == 0 || strcmp(name, "ceil") == 0 ||
+                              strcmp(name, "round") == 0 || strcmp(name, "pow") == 0)) {
+                fprintf(g->out, "%s", name);
+            }
             else { cg_expr(g, e->as.call.callee); }
             fprintf(g->out, "(");
             for (int i = 0; i < e->as.call.args.count; i++) {
@@ -221,13 +296,12 @@ static void cg_expr(CGen* g, Expr* e) {
             if (v && v->kind == EXPR_STRING) {
                 fprintf(g->out, "printf(");
                 cg_literal_str(g, v->as.str_val ? v->as.str_val : "");
-                fprintf(g->out, ")");
-            } else if (v && v->kind == EXPR_FLOAT) {
-                fprintf(g->out, "printf(\"%%g\\n\", (double)(");
-                cg_expr(g, v);
-                fprintf(g->out, "))");
-            } else {
+                fprintf(g->out, "); printf(\"\\n\")");
+            } else if (v && v->kind == EXPR_INT) {
                 fprintf(g->out, "printf(\"%%lld\\n\", (long long)(");
+                cg_expr(g, v); fprintf(g->out, "))");
+            } else {
+                fprintf(g->out, "printf(\"%%g\\n\", (double)(");
                 if (v) cg_expr(g, v); else fprintf(g->out, "0");
                 fprintf(g->out, "))");
             }
@@ -298,16 +372,16 @@ static void cg_params(CGen* g, ParamList params, bool first_is_self) {
         if (first_is_self && i == 0 && params.items[i].is_self) continue;
         if (!first) fprintf(g->out, ", ");
         first = false;
-        // Default type: long long
         const char* ty = "long long";
         if (params.items[i].type_ann) {
             if (strcmp(params.items[i].type_ann, "Float") == 0) ty = "double";
             else if (strcmp(params.items[i].type_ann, "Bool") == 0) ty = "int";
             else if (strcmp(params.items[i].type_ann, "String") == 0) ty = "const char*";
+            else if (strcmp(params.items[i].type_ann, "Int") == 0) ty = "long long";
         }
         fprintf(g->out, "%s %s", ty, c_id(params.items[i].name ? params.items[i].name : "_"));
     }
-    if (first) fprintf(g->out, "void"); // no params
+    if (first) fprintf(g->out, "void");
 }
 
 static void cg_ret_type(CGen* g, TypeNode* ret, const char* fname) {
@@ -385,11 +459,24 @@ static void cg_stmt(CGen* g, Stmt* s) {
                 if (t->kind == TYPE_FLOAT) ty = "double";
                 else if (t->kind == TYPE_BOOL) ty = "int";
                 else if (t->kind == TYPE_STRING) ty = "const char*";
+                else if (t->kind == TYPE_INT) ty = "long long";
             } else if (s->as.let_s.value) {
-                // Inference: if value is a float literal, use double
-                if (s->as.let_s.value->kind == EXPR_FLOAT) ty = "double";
+                if (s->as.let_s.value->kind == EXPR_INT) ty = "long long";
+                else if (s->as.let_s.value->kind == EXPR_FLOAT) ty = "double";
                 else if (s->as.let_s.value->kind == EXPR_BOOL) ty = "int";
                 else if (s->as.let_s.value->kind == EXPR_STRING) ty = "const char*";
+                else if (s->as.let_s.value->kind == EXPR_BINARY) {
+                    Expr* l = s->as.let_s.value->as.binary.left;
+                    Expr* r = s->as.let_s.value->as.binary.right;
+                    if ((l && l->kind == EXPR_FLOAT) || (r && r->kind == EXPR_FLOAT) ||
+                        (l && l->kind == EXPR_IDENT && is_preamble_const(l->as.str_val)) ||
+                        (r && r->kind == EXPR_IDENT && is_preamble_const(r->as.str_val))) {
+                        ty = "double";
+                    }
+                } else if (s->as.let_s.value->kind == EXPR_IDENT &&
+                           is_preamble_const(s->as.let_s.value->as.str_val)) {
+                    ty = "double";
+                }
             }
             cg_i(g);
             fprintf(g->out, "%s %s", ty, c_id(s->as.let_s.name));
@@ -449,8 +536,77 @@ static void cg_stmt(CGen* g, Stmt* s) {
     }
 }
 
-static void cg_toplevel(CGen* g, Program* prog) {
-    // Preamble
+// === Loaded module tracking (for import inlining) =========================
+
+typedef struct LoadedMod {
+    char* path;
+    char* src;
+    Lexer* lex;
+    Program* prog;
+    struct LoadedMod* next;
+} LoadedMod;
+
+static LoadedMod* loaded_mods = NULL;
+
+static bool mod_already_loaded(const char* p) {
+    for (LoadedMod* m = loaded_mods; m; m = m->next)
+        if (strcmp(m->path, p) == 0) return true;
+    return false;
+}
+
+static Program* cg_load_module(const char* source_path, const char* mod_path, CGen* g) {
+    char resolved[2048];
+    if (!fs_resolve_module(source_path, mod_path, resolved, sizeof(resolved))) {
+        fprintf(g->out, "/* could not resolve import '%s' */\n", mod_path);
+        return NULL;
+    }
+    if (mod_already_loaded(resolved)) {
+        for (LoadedMod* m = loaded_mods; m; m = m->next)
+            if (strcmp(m->path, resolved) == 0) return m->prog;
+    }
+    char* src = fs_read_file(resolved);
+    if (!src) {
+        fprintf(g->out, "/* could not read import '%s' */\n", resolved);
+        return NULL;
+    }
+    Lexer* lex = (Lexer*)calloc(1, sizeof(Lexer));
+    lexer_init(lex, resolved, src); lexer_tokenize(lex);
+    Parser* p = (Parser*)calloc(1, sizeof(Parser));
+    parser_init(p, resolved, lex->tokens, lex->count);
+    Program* prog = (Program*)calloc(1, sizeof(Program));
+    parser_parse(p, prog);
+    if (p->had_error) {
+        fprintf(stderr, "%s", p->errors);
+        // leak intentionally; caller returns error
+        return NULL;
+    }
+    LoadedMod* m = (LoadedMod*)calloc(1, sizeof(LoadedMod));
+    m->path = strdup(resolved); m->src = src; m->lex = lex; m->prog = prog;
+    m->next = loaded_mods; loaded_mods = m;
+
+    // Recursively load imports of this module so forward decls cover them too.
+    for (Stmt* s = prog->first; s; s = s->next) {
+        if (s->kind == STMT_IMPORT) {
+            cg_load_module(resolved, s->as.import_s.name, g);
+        }
+    }
+    return prog;
+}
+
+static void cg_free_modules(void) {
+    LoadedMod* nxt;
+    for (LoadedMod* m = loaded_mods; m; m = nxt) {
+        nxt = m->next;
+        if (m->prog) { program_free(m->prog); free(m->prog); }
+        if (m->lex) { lexer_free(m->lex); free(m->lex); }
+        // Note: Parser is stack-copied via calloc — no parser_free.
+        free(m->src); free(m->path); free(m);
+    }
+    loaded_mods = NULL;
+}
+
+
+static void cg_preamble(CGen* g) {
     fprintf(g->out,
         "// Auto-generated by Kodas C backend v%s\n"
         "#include <stdio.h>\n"
@@ -458,54 +614,79 @@ static void cg_toplevel(CGen* g, Program* prog) {
         "#include <stdint.h>\n"
         "#include <math.h>\n"
         "#include <string.h>\n\n"
-        "typedef long long i64;\n\n",
+        "typedef long long i64;\n\n"
+        "/* ---- Math constants (from core.math) ---- */\n"
+        "#ifndef M_PI\n#define M_PI 3.14159265358979323846\n#endif\n"
+        "#ifndef M_E\n#define M_E 2.7182818284590452354\n#endif\n"
+        "#define k_PI  ((double)M_PI)\n"
+        "#define k_E   ((double)M_E)\n"
+        "#define k_TAU (2.0 * M_PI)\n"
+        "#define k_DEG_TO_RAD (M_PI / 180.0)\n"
+        "#define k_RAD_TO_DEG (180.0 / M_PI)\n\n"
+        "/* double-precision math helpers (used via _Generic overloads below) */\n"
+        "static inline double d_radians(double deg){return deg*k_DEG_TO_RAD;}\n"
+        "static inline double d_degrees(double rad){return rad*k_RAD_TO_DEG;}\n"
+        "static inline double d_sign_d(double x){return x>0?1.0:(x<0?-1.0:0.0);}\n"
+        "static inline long long d_sign_i(long long x){return x>0?1:(x<0?-1:0);}\n"
+        "static inline double d_clamp_d(double x,double lo,double hi){return x<lo?lo:(x>hi?hi:x);}\n"
+        "static inline long long d_clamp_i(long long x,long long lo,long long hi){return x<lo?lo:(x>hi?hi:x);}\n"
+        "static inline double d_lerp(double a,double b,double t){return a+(b-a)*t;}\n"
+        "static inline double d_nan_d(double x){(void)x; return 0.0/0.0;}\n"
+        "static inline long long d_nan_i(long long x){(void)x; return 0;}\n"
+        "static inline double d_is_finite_d(double x){return fabs(x)<1e308;}\n"
+        "static inline long long d_is_finite_i(long long x){(void)x; return 1;}\n"
+        "/* C11 _Generic overloads so int and double calls both work */\n"
+        "#define sign(X) _Generic((X), double: d_sign_d, float: d_sign_d, default: d_sign_i)(X)\n"
+        "#define clamp(X,L,H) _Generic((X), double: d_clamp_d, float: d_clamp_d, default: d_clamp_i)(X,L,H)\n"
+        "#define radians(X) d_radians((double)(X))\n"
+        "#define degrees(X) d_degrees((double)(X))\n"
+        "#define lerp(A,B,T) d_lerp((double)(A),(double)(B),(double)(T))\n"
+        "#define is_nan(X) ((X)!=(X))\n"
+        "#define is_finite(X) _Generic((X), double: d_is_finite_d, float: d_is_finite_d, default: d_is_finite_i)(X)\n"
+        "/* Overrides for abs with integers (libm fabs takes double) */\n"
+        "#ifndef __cplusplus\n"
+        "static inline long long k_abs_i(long long x){return x<0?-x:x;}\n"
+        "#define k_abs(X) _Generic((X), double: fabs, float: fabsf, default: k_abs_i)(X)\n"
+        "#endif\n\n",
         KODAS_VERSION_STRING);
+}
 
-    // Forward-declare functions
+static void cg_emit_forward_decls(CGen* g, Program* prog) {
     for (Stmt* s = prog->first; s; s = s->next) {
-        if (s->kind == STMT_FN) {
+        if (s->kind == STMT_FN && !is_preamble_fn(s->as.fn_s.name)) {
             cg_ret_type(g, s->as.fn_s.ret_type, s->as.fn_s.name);
             fprintf(g->out, " %s(", c_id(s->as.fn_s.name));
             cg_params(g, s->as.fn_s.params, false);
             fprintf(g->out, ");\n");
         }
     }
-    fprintf(g->out, "\n");
+}
 
-    // Emit all top-level decls, then main
-    bool had_main = false;
+static void cg_emit_toplevel_decls(CGen* g, Program* prog, bool* out_had_main) {
     for (Stmt* s = prog->first; s; s = s->next) {
         if (s->kind == STMT_FN && strcmp(s->as.fn_s.name, "main") == 0) {
-            had_main = true;
+            if (out_had_main) *out_had_main = true;
         }
-        if (s->kind == STMT_FN) {
+        // Skip libm colliding fns (sin/cos/tan/etc.) — we use libm directly.
+        if (s->kind == STMT_FN && is_preamble_fn(s->as.fn_s.name)) continue;
+        // Skip math constants already defined in preamble.
+        if ((s->kind == STMT_LET || s->kind == STMT_SEAL) &&
+            is_preamble_const(s->as.let_s.name)) continue;
+        if (s->kind == STMT_FN || s->kind == STMT_LET || s->kind == STMT_SEAL) {
             cg_stmt(g, s);
             fprintf(g->out, "\n");
-        } else if (s->kind == STMT_LET || s->kind == STMT_SEAL || s->kind == STMT_EXPR) {
-            // Top-level side effects go into main
-        } else {
-            cg_stmt(g, s);
         }
-    }
-
-    if (!had_main) {
-        fprintf(g->out, "int main(int argc, char** argv) {\n");
-        g->indent += 4;
-        for (Stmt* s = prog->first; s; s = s->next) {
-            if (s->kind == STMT_LET || s->kind == STMT_SEAL || s->kind == STMT_EXPR) {
-                cg_stmt(g, s);
-            }
-        }
-        g->indent -= 4;
-        fprintf(g->out, "    return 0;\n}\n");
     }
 }
 
+
 int codegen_c_emit_file(const char* source_path, const char* c_out_path) {
+    fs_set_exe_path(source_path); // best-effort; argv0 not available here
+
     FILE* fin = fopen(source_path, "rb");
     if (!fin) { fprintf(stderr, "  ✗ cannot open %s: %s\n", source_path, strerror(errno)); return 1; }
     fseek(fin, 0, SEEK_END); long sz = ftell(fin); fseek(fin, 0, SEEK_SET);
-    char* src = malloc(sz + 1); size_t n = fread(src, 1, sz, fin); src[n] = '\0';
+    char* src = (char*)malloc(sz + 1); size_t n = fread(src, 1, sz, fin); src[n] = '\0';
     fclose(fin);
 
     Lexer lex; lexer_init(&lex, source_path, src); lexer_tokenize(&lex);
@@ -519,13 +700,70 @@ int codegen_c_emit_file(const char* source_path, const char* c_out_path) {
         return 1;
     }
 
-    FILE* fout = fopen(c_out_path, "wb");
-    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); program_free(&prog); lexer_free(&lex); free(src); return 1; }
+    // Pre-load all imported modules (recursively). This gives us Programs to
+    // inline before emitting.
+    CGen g; memset(&g, 0, sizeof(g));
+    g.out = NULL; // temp: no output during load
+    for (Stmt* s = prog.first; s; s = s->next) {
+        if (s->kind == STMT_IMPORT) {
+            cg_load_module(source_path, s->as.import_s.name, &g);
+        }
+    }
 
-    CGen g; memset(&g, 0, sizeof(g)); g.out = fout;
-    cg_toplevel(&g, &prog);
+    FILE* fout = fopen(c_out_path, "wb");
+    if (!fout) { fprintf(stderr, "  ✗ cannot write %s\n", c_out_path); goto fail; }
+
+    memset(&g, 0, sizeof(g));
+    g.out = fout;
+
+    cg_preamble(&g);
+
+    // Forward-declare functions from all modules first (order-independent calls).
+    for (LoadedMod* m = loaded_mods; m; m = m->next) cg_emit_forward_decls(&g, m->prog);
+    cg_emit_forward_decls(&g, &prog);
+    fprintf(g.out, "\n");
+
+    // Emit stdlib module bodies in loaded order.
+    for (LoadedMod* m = loaded_mods; m; m = m->next) {
+        fprintf(g.out, "/* ---- begin module %s ---- */\n", m->path);
+        cg_emit_toplevel_decls(&g, m->prog, NULL);
+        fprintf(g.out, "/* ---- end module %s ---- */\n\n", m->path);
+    }
+
+    // Emit user program fn decls at file scope; LET/SEAL/EXPR go into main.
+    bool had_main = false;
+    for (Stmt* s = prog.first; s; s = s->next) {
+        if (s->kind == STMT_FN) {
+            if (strcmp(s->as.fn_s.name, "main") == 0) had_main = true;
+            if (is_preamble_fn(s->as.fn_s.name)) continue;
+            cg_stmt(&g, s);
+            fprintf(g.out, "\n");
+        }
+    }
+
+    if (!had_main) {
+        fprintf(g.out, "int main(int argc, char** argv) {\n");
+        fprintf(g.out, "    (void)argc; (void)argv;\n");
+        g.indent += 4;
+        for (Stmt* s = prog.first; s; s = s->next) {
+            if (s->kind == STMT_LET || s->kind == STMT_SEAL || s->kind == STMT_EXPR) {
+                cg_stmt(&g, s);
+            }
+        }
+        g.indent -= 4;
+        fprintf(g.out, "    return 0;\n}\n");
+    }
+
     fclose(fout);
     program_free(&prog);
     lexer_free(&lex); free(src);
-    return g.had_error ? 1 : 0;
+    int rc = g.had_error ? 1 : 0;
+    cg_free_modules();
+    return rc;
+
+fail:
+    program_free(&prog);
+    lexer_free(&lex); free(src);
+    cg_free_modules();
+    return 1;
 }
