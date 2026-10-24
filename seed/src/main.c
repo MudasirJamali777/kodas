@@ -80,7 +80,7 @@ static void print_usage(const char* argv0) {
     printf("  %s repl                  Start interactive REPL\n", argv0);
     printf("  %s tokens <file.kds>     Show tokens (debug)\n", argv0);
     printf("  %s ast <file.kds>        Show AST info (debug)\n", argv0);
-    printf("  %s test                  Run tests (no project specified - runs file)\n", argv0);
+    printf("  %s test [path]           Run tests (*_test.kds, test*.kds) in a file or directory (default: tests/)\n", argv0);
     printf("  %s version               Show version\n", argv0);
     printf("  %s help                  Show this help\n", argv0);
 }
@@ -156,6 +156,136 @@ static int cmd_check(const char* file) {
     lexer_free(&lex);
     free(source);
     return rc;
+}
+
+typedef struct {
+    char (*files)[2048];
+    int count;
+    int max;
+} TestCollector;
+
+static bool is_test_filename(const char* name) {
+    size_t n = strlen(name);
+    if (n < 9) return false;
+    const char* ext = strrchr(name, '.');
+    if (!ext || strcmp(ext, ".kds") != 0) return false;
+    size_t stem_len = (size_t)(ext - name);
+    // Match *_test.kds: last 5 chars of stem must be "_test"
+    if (stem_len >= 5 && strncmp(ext - 5, "_test", 5) == 0) return true;
+    // Match test*.kds: stem starts with "test"
+    if (stem_len >= 4 && strncmp(name, "test", 4) == 0) return true;
+    return false;
+}
+
+static int test_collect_cb(const char* dir, const char* name, void* ctx) {
+    TestCollector* tc = (TestCollector*)ctx;
+    if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) return 0;
+    char full[2048];
+    snprintf(full, sizeof(full), "%s/%s", dir, name);
+    if (fs_is_dir(full)) return 0;
+    if (!is_test_filename(name)) return 0;
+    if (tc->count >= tc->max) return 0;
+    // Insert in sorted position (simple insertion sort)
+    int insert_at = tc->count;
+    for (int i = 0; i < tc->count; i++) {
+        if (strcmp(full, tc->files[i]) < 0) { insert_at = i; break; }
+    }
+    for (int i = tc->count; i > insert_at; i--) {
+        memcpy(tc->files[i], tc->files[i-1], 2048);
+    }
+    snprintf(tc->files[insert_at], 2048, "%s", full);
+    tc->count++;
+    return 0;
+}
+
+static int cmd_test(const char* path) {
+    char file_buf[256][2048];
+    int file_count = 0;
+
+    int isdir = fs_is_dir(path);
+    if (isdir) {
+        TestCollector tc = { .files = file_buf, .count = 0, .max = 256 };
+        fs_list_dir(path, test_collect_cb, &tc);
+        file_count = tc.count;
+    } else {
+        snprintf(file_buf[0], 2048, "%s", path);
+        file_count = 1;
+    }
+
+    if (file_count == 0) {
+        printf("No test files found in '%s'.\n", path);
+        return 0;
+    }
+
+    printf("Running tests from %d file(s):\n\n", file_count);
+
+    int total_passed = 0;
+    int total_failed = 0;
+    int total_files_ok = 0;
+    int total_files_fail = 0;
+
+    for (int i = 0; i < file_count; i++) {
+        const char* f = file_buf[i];
+        const char* target = f;
+
+        char* source = read_file(target);
+        if (!source) {
+            printf("%s:\n", f);
+            printf("  ✗ could not read file\n\n");
+            total_files_fail++;
+            total_failed++;
+            continue;
+        }
+
+        Lexer lex;
+        lexer_init(&lex, target, source);
+        lexer_tokenize(&lex);
+
+        Parser p;
+        parser_init(&p, target, lex.tokens, lex.count);
+        Program prog;
+        parser_parse(&p, &prog);
+
+        printf("%s:\n", f);
+
+        if (p.had_error) {
+            fprintf(stderr, "%s", p.errors);
+            printf("  ✗ parse errors\n\n");
+            total_files_fail++;
+            total_failed++;
+            program_free(&prog);
+            lexer_free(&lex);
+            free(source);
+            continue;
+        }
+
+        Evaluator ev;
+        eval_init(&ev);
+        ev.current_file = target;
+        ev.collecting_tests = false;
+        Value result = eval_program(&ev, &prog);
+        int fp = ev.tests_passed;
+        int ff = ev.tests_failed;
+        if (ev.had_error) {
+            printf("  ✗ runtime error: %s\n", ev.error_msg[0] ? ev.error_msg : "unknown");
+            ff++;
+        }
+        value_free(&result);
+        eval_free(&ev);
+
+        printf("  %d passed, %d failed\n\n", fp, ff);
+        total_passed += fp;
+        total_failed += ff;
+        if (ff > 0) total_files_fail++; else total_files_ok++;
+
+        program_free(&prog);
+        lexer_free(&lex);
+        free(source);
+    }
+
+    printf("=== Summary: %d passed, %d failed across %d file(s) (%d OK, %d failed) ===\n",
+           total_passed, total_failed, file_count, total_files_ok, total_files_fail);
+    return total_failed > 0 ? 1 : 0;
 }
 
 static int cmd_build(const char* file) {
@@ -271,9 +401,8 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (strcmp(cmd, "test") == 0) {
-        if (argc < 3) { fprintf(stderr, "Usage: kodas test <file>\n"); return 1; }
-        printf("Running tests in %s:\n", argv[2]);
-        return cmd_run(argv[2]);
+        const char* target = (argc >= 3) ? argv[2] : "tests";
+        return cmd_test(target);
     }
 
     // Try to treat as file to run
