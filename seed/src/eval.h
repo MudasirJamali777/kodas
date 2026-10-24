@@ -18,6 +18,9 @@ typedef struct {
     char error_msg[1024];
     Stmt* prog_first;
     const char* current_file;  // path of file currently being evaluated
+    int tests_passed;
+    int tests_failed;
+    bool collecting_tests;     // when true, don't print per-test lines (used by `kodas test`)
 } Evaluator;
 
 void eval_init(Evaluator* ev);
