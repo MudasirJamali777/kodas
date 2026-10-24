@@ -30,4 +30,12 @@ const char* fs_stdlib_root(void);
 /// `.kds` file path. Writes into out (size out_size). Returns 1 if found, 0 otherwise.
 int fs_resolve_module(const char* current_file, const char* module_path, char* out, size_t out_size);
 
+/// Simple directory listing: call cb for each entry in `dir`. If cb returns
+/// non-zero, traversal stops and returns that value. Returns 0 on completion.
+/// `name` is the bare entry name (no path). Does NOT recurse.
+int fs_list_dir(const char* dir, int (*cb)(const char* dir, const char* name, void* ctx), void* ctx);
+
+/// Return 1 if path is a directory, 0 otherwise.
+int fs_is_dir(const char* path);
+
 #endif
