@@ -11,6 +11,7 @@
 #else
 #include <unistd.h>
 #include <libgen.h>
+#include <dirent.h>
 #define PATH_SEP '/'
 #endif
 
@@ -130,4 +131,45 @@ int fs_resolve_module(const char* current_file, const char* module_path, char* o
         if (fs_file_exists(out)) return 1;
     }
     return 0;
+}
+
+int fs_is_dir(const char* path) {
+#ifdef _WIN32
+    DWORD a = GetFileAttributesA(path);
+    return (a != INVALID_FILE_ATTRIBUTES) && (a & FILE_ATTRIBUTE_DIRECTORY);
+#else
+    struct stat st;
+    if (stat(path, &st) != 0) return 0;
+    return S_ISDIR(st.st_mode);
+#endif
+}
+
+int fs_list_dir(const char* dir, int (*cb)(const char* dir, const char* name, void* ctx), void* ctx) {
+#ifdef _WIN32
+    WIN32_FIND_DATAA fd;
+    char pattern[2048];
+    snprintf(pattern, sizeof(pattern), "%s\\*", dir);
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) return 0;
+    int rc = 0;
+    do {
+        if (strcmp(fd.cFileName, ".") == 0 || strcmp(fd.cFileName, "..") == 0) continue;
+        rc = cb(dir, fd.cFileName, ctx);
+        if (rc) break;
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+    return rc;
+#else
+    DIR* d = opendir(dir);
+    if (!d) return 0;
+    struct dirent* ent;
+    int rc = 0;
+    while ((ent = readdir(d)) != NULL) {
+        if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) continue;
+        rc = cb(dir, ent->d_name, ctx);
+        if (rc) break;
+    }
+    closedir(d);
+    return rc;
+#endif
 }
