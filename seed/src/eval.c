@@ -1318,13 +1318,19 @@ Value eval_stmt(Evaluator* ev, Environment* env, Stmt* stmt) {
             // FFI bridge blocks are no-ops in seed
             return val_null();
         case STMT_TEST: {
-            // Run test immediately
+            // Run test immediately: a test passes if no runtime error was raised.
             Value result = eval_expr(ev, env, stmt->as.test_s.body);
             value_free(&result);
             if (!ev->had_error) {
-                printf("  ✓ test %s\n", stmt->as.test_s.name);
+                ev->tests_passed++;
+                if (!ev->collecting_tests) {
+                    printf("  ✓ test %s\n", stmt->as.test_s.name);
+                }
             } else {
-                printf("  ✗ test %s FAILED: %s\n", stmt->as.test_s.name, ev->error_msg);
+                ev->tests_failed++;
+                if (!ev->collecting_tests) {
+                    printf("  ✗ test %s FAILED: %s\n", stmt->as.test_s.name, ev->error_msg[0] ? ev->error_msg : "assertion failed");
+                }
                 ev->had_error = false;
                 ev->error_msg[0] = '\0';
             }
