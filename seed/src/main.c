@@ -5,6 +5,7 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <limits.h>
 #include "lexer.h"
 #include "parser.h"
 #include "eval.h"
@@ -289,23 +290,40 @@ static int cmd_test(const char* path) {
 }
 
 static int cmd_build(const char* file) {
-    // 1. Parse via C backend -> write .c file
+    // KRT-based backend: full-language compilation.
+    char* source = read_file(file);
+    if (!source) { fprintf(stderr, "Error: failed to read '%s'\n", file); return 1; }
+
+    Lexer lex;
+    lexer_init(&lex, file, source);
+    lexer_tokenize(&lex);
+    Parser p;
+    parser_init(&p, file, lex.tokens, lex.count);
+    Program prog;
+    parser_parse(&p, &prog);
+
+    if (p.had_error) {
+        fprintf(stderr, "%s", p.errors);
+        program_free(&prog); lexer_free(&lex); free(source);
+        return 1;
+    }
+
     char c_path[1024], out_path[1024];
     snprintf(c_path, sizeof(c_path), "%s.c", file);
-    // Output binary: strip .kds extension
     size_t fl = strlen(file);
     if (fl > 4 && strcmp(file + fl - 4, ".kds") == 0) {
         snprintf(out_path, sizeof(out_path), "%.*s", (int)(fl - 4), file);
     } else {
         snprintf(out_path, sizeof(out_path), "%s.out", file);
     }
-    printf("  [1/3] Transpiling %s -> %s\n", file, c_path);
-    int rc = codegen_c_emit_file(file, c_path);
-    if (rc != 0) {
-        fprintf(stderr, "  ✗ code generation failed (program uses features beyond C subset; falling back to interpreter)\n");
+    printf("  [1/3] Compiling %s -> %s (KRT backend)\n", file, c_path);
+    int ok = codegen_krt(&prog, c_path, file);
+    program_free(&prog); lexer_free(&lex); free(source);
+    if (!ok) {
+        fprintf(stderr, "  ✗ code generation failed; falling back to interpreter\n");
         return cmd_run(file);
     }
-    // 2. Locate a C compiler (simple PATH probe via --version check)
+
     char cc_path[256] = {0};
     const char* cands[] = {"gcc", "clang", "cc", NULL};
     for (int i = 0; cands[i]; i++) {
@@ -322,19 +340,34 @@ static int cmd_build(const char* file) {
         fprintf(stderr, "  ✗ no C compiler found (gcc/clang/cc/cl required) — falling back to interpreter\n");
         return cmd_run(file);
     }
+
+    // Locate krt.c / krt.h relative to kodas binary.
+    char krt_dir[1024], krt_c[1024], krt_hdir[1024], src_dir[1024];
+    const char* ed = fs_exe_dir();
+    snprintf(krt_dir, sizeof(krt_dir), "%s/../src/codegen", ed && ed[0] ? ed : ".");
+    snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+    FILE* fk = fopen(krt_c, "r");
+    if (!fk) {
+        snprintf(krt_dir, sizeof(krt_dir), "src/codegen");
+        snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+        fk = fopen(krt_c, "r");
+    }
+    if (fk) fclose(fk);
+    snprintf(krt_hdir, sizeof(krt_hdir), "%s", krt_dir);
+    snprintf(src_dir, sizeof(src_dir), "%s/..", krt_dir);
+
     printf("  [2/3] Compiling %s -> %s (using %s)\n", c_path, out_path, cc_path);
     char cmd[8192];
     if (strcmp(cc_path, "cl") == 0) {
-        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /Fe%s \"%s\"", out_path, c_path);
+        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /DKRT_MAIN /I \"%s\" /I \"%s\" \"%s\" \"%s\" /Fe%s", src_dir, krt_hdir, krt_c, c_path, out_path);
     } else {
-        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 \"%s\" -o \"%s\" -lm", cc_path, c_path, out_path);
+        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -I \"%s\" -I \"%s\" \"%s\" \"%s\" -o \"%s\" -lm", cc_path, src_dir, krt_hdir, krt_c, c_path, out_path);
     }
-    rc = system(cmd);
+    int rc = system(cmd);
     if (rc != 0) {
         fprintf(stderr, "  ✗ C compilation failed (rc=%d)\n", rc);
         return rc;
     }
-    // 3. Run the produced binary
     printf("  [3/3] Running %s\n", out_path);
     printf("  ----------\n");
     fflush(stdout);
