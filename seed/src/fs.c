@@ -83,6 +83,8 @@ void fs_set_exe_path(const char* argv0) {
 #endif
 }
 
+const char* fs_exe_dir(void) { return exe_dir; }
+
 const char* fs_stdlib_root(void) {
     static char root[1024] = {0};
     if (root[0]) return root;
