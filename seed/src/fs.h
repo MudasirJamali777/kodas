@@ -25,6 +25,7 @@ void fs_dirname(const char* path, char* dir_out, size_t dir_out_size);
 void fs_set_exe_path(const char* argv0);
 
 const char* fs_stdlib_root(void);
+const char* fs_exe_dir(void);
 
 /// Resolve a module path like "core/math" or "core/strings" to an absolute
 /// `.kds` file path. Writes into out (size out_size). Returns 1 if found, 0 otherwise.
