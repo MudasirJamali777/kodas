@@ -1,0 +1,11 @@
+fn greet(name) { give "Hello, " + name + "!" }
+fn main() {
+    show(greet("World"))
+    show(greet("Alice"))
+    let i = 0
+    while i < 3 {
+        show("count " + str(i))
+        i += 1
+    }
+    show(str(10>5))
+}
