@@ -1,0 +1,6 @@
+fn main() {
+    let xs = ["a","b","c"]
+    for i, x in xs {
+        show(str(i) + ": " + x)
+    }
+}

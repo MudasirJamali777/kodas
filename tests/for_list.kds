@@ -1,0 +1,6 @@
+fn main() {
+    let xs = [10, 20, 30, 40]
+    let sum = 0
+    for x in xs { sum += x }
+    show("sum=" + str(sum))
+}
