@@ -58,7 +58,7 @@ static void synchronize(Parser* p) {
         if (previous(p)->kind == TOK_SEMI || previous(p)->kind == TOK_NEWLINE) return;
         switch (peek_tok(p)->kind) {
             case TOK_FN: case TOK_LET: case TOK_SEAL: case TOK_STRUCT: case TOK_ENUM:
-            case TOK_IF: case TOK_LOOP: case TOK_MATCH: case TOK_SHOW: case TOK_TEST:
+            case TOK_IF: case TOK_LOOP: case TOK_WHILE: case TOK_FOR: case TOK_MATCH: case TOK_SHOW: case TOK_TEST:
             case TOK_BENCH: case TOK_CONTRACT:
             case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_IMPORT: case TOK_MODULE:
             case TOK_BRIDGE: case TOK_RETURN: case TOK_FLOW: case TOK_TOGETHER:
@@ -285,10 +285,15 @@ static Expr* parse_primary(Parser* p) {
             advance_tok(p);
             Expr* e = expr_new(EXPR_INTERP_STRING, loc);
             e->as.interp.parts = (Expr**)kodas_calloc(16, sizeof(Expr*));
-            // First part is the literal string before {
-            char* first_str = kodas_strndup(start_tok->start, start_tok->length);
-            e->as.interp.parts[e->as.interp.count++] = expr_string(first_str, loc);
-            free(first_str);
+            // First part is the literal string before ${...}; strip trailing interpolation opener "${"
+            int _fl = start_tok->length;
+            while (_fl > 0 && (start_tok->start[_fl-1] == '$' || start_tok->start[_fl-1] == '{' || start_tok->start[_fl-1] == '}')) {
+                if (start_tok->start[_fl-1] == '$') { _fl--; break; }
+                _fl--;
+            }
+            char* first_raw = kodas_strndup(start_tok->start, _fl);
+            e->as.interp.parts[e->as.interp.count++] = expr_string(first_raw, loc);
+            free(first_raw);
             // Parse expression inside { }
             Expr* first = parse_expr(p);
             e->as.interp.parts[e->as.interp.count++] = first;
@@ -414,16 +419,27 @@ static Expr* parse_primary(Parser* p) {
                 Expr* first = parse_expr(p);
                 expr_list_append(&items, first);
                 if (is_at(p, TOK_FOR)) {
-                    // It's a list comprehension - we'll treat as expression
-                    // for simplicity, evaluate eagerly
+                    // List comprehension: [elem for var[, idx] in iter]
                     advance_tok(p);
-                    // Parse the rest but for now just create array-comp node
-                    // We'll simplify: consume until ]
-                    while (!is_at(p, TOK_RBRACKET) && !is_at(p, TOK_EOF)) advance_tok(p);
-                    advance_tok(p); // ]
+                    // parse optional index var: "i, x in"
+                    Token* var_tok = consume(p, TOK_IDENT, "expected loop variable in comprehension");
+                    char* var_name = kodas_strndup(var_tok->start, var_tok->length);
+                    char* idx_name = NULL;
+                    if (match_tok(p, TOK_COMMA)) {
+                        Token* it = consume(p, TOK_IDENT, "expected index variable");
+                        idx_name = kodas_strndup(it->start, it->length);
+                    }
+                    consume(p, TOK_IN, "expected 'in' in comprehension");
+                    Expr* iter_e = parse_expr(p);
+                    Expr* cond_e = NULL;
+                    if (match_tok(p, TOK_IF)) { cond_e = parse_expr(p); }
+                    consume(p, TOK_RBRACKET, "expected ']' after comprehension");
                     Expr* e = expr_new(EXPR_ARRAY_COMP, loc);
-                    // Store first expr
-                    e->as.call.callee = first;
+                    e->as.comp.elem = first;
+                    e->as.comp.var = var_name;
+                    e->as.comp.idx_var = idx_name;
+                    e->as.comp.iter = iter_e;
+                    e->as.comp.cond = cond_e;
                     da_free(&items);
                     return e;
                 }
@@ -438,6 +454,86 @@ static Expr* parse_primary(Parser* p) {
         }
 
         case TOK_LBRACE: {
+            // Distinguish block, set literal, map literal.
+            // Look ahead: { } (empty) -> treat as block for safety (or empty set)
+            //            { expr , ... } -> set
+            //            { expr : expr , ... } -> map
+            //            { statement ... } -> block
+            // Peek past `{`.
+            {
+                int np = p->pos + 1; // past '{'
+                bool is_empty = (np < p->count && p->tokens[np].kind == TOK_RBRACE);
+                // Detect set vs map by scanning for a ':' at expression level before any statement boundary.
+                // Simplified heuristic: if the next two tokens are (IDENT|literal) ':' it's a map entry.
+                // If it's (IDENT|literal) ',' or '}' it's a set element. Otherwise parse as block.
+                if (!is_empty) {
+                    int q = np;
+                    TokenKind k0 = p->tokens[q].kind;
+                    bool first_is_decl = (k0 == TOK_LET || k0 == TOK_SEAL || k0 == TOK_FN ||
+                                          k0 == TOK_STRUCT || k0 == TOK_ENUM || k0 == TOK_BEHAVE ||
+                                          k0 == TOK_TRAIT || k0 == TOK_IMPL || k0 == TOK_IF ||
+                                          k0 == TOK_LOOP || k0 == TOK_WHILE || k0 == TOK_FOR ||
+                                          k0 == TOK_MATCH || k0 == TOK_RETURN || k0 == TOK_GIVE ||
+                                          k0 == TOK_SHOW || k0 == TOK_ASSERT || k0 == TOK_TEST ||
+                                          k0 == TOK_BENCH || k0 == TOK_IMPORT || k0 == TOK_MODULE);
+                    if (!first_is_decl) {
+                        // Heuristic: scan tokens at depth==0 looking for a structural marker.
+                        // ':' at depth==0 with no intervening '='/'=='/'<='/'>='/give'/'return'  => map.
+                        // ',' or RBRACE at depth==0 with NO '=' at depth==0  => set.
+                        // Otherwise => block.
+                        int depth = 0;
+                        bool saw_eq = false;
+                        TokenKind after = TOK_EOF;
+                        int j;
+                        for (j = q; j < p->count; j++) {
+                            TokenKind k = p->tokens[j].kind;
+                            if (k == TOK_LPAREN || k == TOK_LBRACKET || k == TOK_LBRACE) depth++;
+                            else if (k == TOK_RPAREN || k == TOK_RBRACKET) depth--;
+                            else if (k == TOK_RBRACE && depth == 0) { after = TOK_RBRACE; break; }
+                            else if (depth == 0) {
+                                if (k == TOK_COMMA) { after = TOK_COMMA; break; }
+                                if (k == TOK_COLON) { after = TOK_COLON; break; }
+                                if (k == TOK_EQ || k == TOK_ARROW || k == TOK_FAT_ARROW ||
+                                    k == TOK_LET || k == TOK_GIVE || k == TOK_RETURN ||
+                                    k == TOK_SEMI || k == TOK_IF || k == TOK_WHILE ||
+                                    k == TOK_FOR || k == TOK_LOOP || k == TOK_MATCH ||
+                                    k == TOK_SHOW) { saw_eq = true; break; }
+                            }
+                        }
+                        (void)j;
+                        if (!saw_eq && (after == TOK_COMMA || after == TOK_RBRACE)) {
+                            // Set literal
+                            advance_tok(p); // '{'
+                            Expr* e = expr_new(EXPR_SET, loc);
+                            while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
+                                if (e->as.call.args.count > 0) {
+                                    if (!match_tok(p, TOK_COMMA)) break;
+                                }
+                                expr_list_append(&e->as.call.args, parse_expr(p));
+                            }
+                            consume(p, TOK_RBRACE, "expected '}'");
+                            return e;
+                        }
+                        if (!saw_eq && after == TOK_COLON) {
+                            // Map literal {key: val, ...}
+                            advance_tok(p);
+                            Expr* e = expr_new(EXPR_MAP, loc);
+                            while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
+                                if (e->as.call.args.count > 0) {
+                                    if (!match_tok(p, TOK_COMMA)) break;
+                                }
+                                Expr* k2 = parse_expr(p);
+                                consume(p, TOK_COLON, "expected ':' in map entry");
+                                Expr* v2 = parse_expr(p);
+                                expr_list_append(&e->as.call.args, k2);
+                                expr_list_append(&e->as.call.args, v2);
+                            }
+                            consume(p, TOK_RBRACE, "expected '}'");
+                            return e;
+                        }
+                    }
+                }
+            }
             // Block expression
             advance_tok(p);
             StmtList stmts = {0};
@@ -670,6 +766,60 @@ static Expr* parse_primary(Parser* p) {
             return e;
         }
 
+        case TOK_WHILE: {
+            advance_tok(p);
+            Expr* cond = parse_expr(p);
+            Expr* body = is_at(p, TOK_LBRACE) ? parse_primary(p) : parse_expr(p);
+            Expr* e = expr_new(EXPR_WHILE, loc);
+            e->as.loop_in.cond = cond;
+            e->as.loop_in.body = body;
+            e->as.loop_in.var = NULL;
+            e->as.loop_in.idx_var = NULL;
+            e->as.loop_in.iter = NULL;
+            e->as.loop_in.is_while = true;
+            return e;
+        }
+        case TOK_FOR: {
+            // for x in iter { body }  or  for i, x in iter { body }  or  for (i, x) in iter
+            advance_tok(p);
+            // Support both `i, x in ...` (comma without parens) and `(i, x) in ...`
+            char* var = NULL; char* idx_var = NULL;
+            Expr* first = NULL;
+            Token* n0 = peek_tok(p);
+            if (n0->kind == TOK_IDENT) {
+                Token* n1 = (p->pos+1 < p->count) ? &p->tokens[p->pos+1] : NULL;
+                if (n1 && n1->kind == TOK_COMMA) {
+                    Token* idxt = advance_tok(p);
+                    advance_tok(p); // comma
+                    Token* vart = consume(p, TOK_IDENT, "expected variable after ','");
+                    idx_var = kodas_strndup(idxt->start, idxt->length);
+                    var = kodas_strndup(vart->start, vart->length);
+                } else {
+                    first = parse_expr(p);
+                    if (first->kind == EXPR_TUPLE && first->as.call.args.count == 2) {
+                        if (first->as.call.args.items[0]->kind == EXPR_IDENT) idx_var = kodas_strdup(first->as.call.args.items[0]->as.str_val);
+                        if (first->as.call.args.items[1]->kind == EXPR_IDENT) var = kodas_strdup(first->as.call.args.items[1]->as.str_val);
+                    } else if (first->kind == EXPR_IDENT) {
+                        var = kodas_strdup(first->as.str_val);
+                    }
+                }
+            } else {
+                first = parse_expr(p);
+                if (first->kind == EXPR_TUPLE && first->as.call.args.count == 2) {
+                    if (first->as.call.args.items[0]->kind == EXPR_IDENT) idx_var = kodas_strdup(first->as.call.args.items[0]->as.str_val);
+                    if (first->as.call.args.items[1]->kind == EXPR_IDENT) var = kodas_strdup(first->as.call.args.items[1]->as.str_val);
+                }
+            }
+            consume(p, TOK_IN, "expected 'in' in for loop");
+            Expr* iter = parse_expr(p);
+            Expr* body = is_at(p, TOK_LBRACE) ? parse_primary(p) : parse_expr(p);
+            Expr* e = expr_new(EXPR_LOOP_IN, loc);
+            e->as.loop_in.var = var; e->as.loop_in.idx_var = idx_var;
+            e->as.loop_in.iter = iter; e->as.loop_in.body = body;
+            e->as.loop_in.is_while = false; e->as.loop_in.cond = NULL;
+            if (first) expr_free(first);
+            return e;
+        }
         case TOK_LOOP: {
             advance_tok(p);
             // Various loop forms
@@ -798,8 +948,15 @@ static Expr* parse_postfix(Parser* p, Expr* left) {
         if (is_at(p, TOK_LPAREN)) {
             left = parse_call_args(p, left, loc);
         } else if (match_tok(p, TOK_DOT)) {
-            // Method call or field access
-            Token* name_t = consume(p, TOK_IDENT, "expected property name");
+            // Method call or field access - accept any name-like token (ident or soft keywords like new/type/self)
+            Token* name_t = peek_tok(p);
+            if (name_t->kind == TOK_EOF || name_t->kind == TOK_LPAREN || name_t->kind == TOK_RPAREN ||
+                name_t->kind == TOK_LBRACE || name_t->kind == TOK_RBRACE || name_t->kind == TOK_LBRACKET ||
+                name_t->kind == TOK_RBRACKET || name_t->kind == TOK_SEMI || name_t->kind == TOK_COMMA) {
+                error_at(p, name_t, "expected property name");
+            } else {
+                advance_tok(p);
+            }
             char* name = kodas_strndup(name_t->start, name_t->length);
             if (is_at(p, TOK_LPAREN)) {
                 advance_tok(p);
@@ -1037,7 +1194,16 @@ static Stmt* parse_fn(Parser* p, bool is_pub) {
         op_name = kodas_strndup(name_tok->start, name_tok->length);
         name_tok = NULL;
     } else {
-        name_tok = consume(p, TOK_IDENT, "expected function name");
+        // Accept identifier or soft keyword tokens (new, type, self, where, etc.) as names.
+        Token* nk = peek_tok(p);
+        bool is_name = (nk->kind == TOK_IDENT || nk->kind == TOK_NEW_KW || nk->kind == TOK_TYPE_KW ||
+                        nk->kind == TOK_SELF || nk->kind == TOK_WHERE || nk->kind == TOK_OP);
+        if (is_name) {
+            name_tok = advance_tok(p);
+        } else {
+            error_at(p, nk, "expected function name");
+            name_tok = nk;
+        }
     }
 
     Stmt* s = stmt_new(STMT_FN, loc);
@@ -1163,21 +1329,22 @@ static Stmt* parse_behave(Parser* p, bool is_pub) {
 
     consume(p, TOK_LBRACE, "expected '{'");
     while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
-        if (is_at(p, TOK_FN) || (is_at(p, TOK_PUB) && p->tokens[p->pos+1].kind == TOK_FN)) {
-            bool pub_m = match_tok(p, TOK_PUB);
-            if (match_tok(p, TOK_FN)) {
-                // Simple approach: parse function inline without moving
-                Location floc KODAS_UNUSED = prev_loc(p); (void)floc;
-                FnDecl d = {0};
-                Token* fn_name = consume(p, TOK_IDENT, "expected method name");
-                d.name = kodas_strndup(fn_name->start, fn_name->length);
-                d.params = parse_params(p);
-                if (match_tok(p, TOK_ARROW)) d.ret_type = parse_type(p);
-                if (match_tok(p, TOK_FAT_ARROW)) { d.is_arrow = true; d.body = parse_expr(p); }
-                else if (is_at(p, TOK_LBRACE)) { d.body = parse_primary(p); }
-                else { d.body = NULL; }
+        bool pub_m = match_tok(p, TOK_PUB);
+        if (is_at(p, TOK_FN)) {
+            advance_tok(p); // consume 'fn' (parse_fn expects to start on the name)
+            // Reuse the top-level fn parser to avoid re-implementing parsing inline.
+            Stmt* fs = parse_fn(p, pub_m);
+            if (fs) {
+                FnDecl d; memset(&d,0,sizeof(d));
+                d.name = fs->as.fn_s.name;
+                d.params = fs->as.fn_s.params;
+                d.ret_type = fs->as.fn_s.ret_type;
+                d.body = fs->as.fn_s.body;
+                d.is_arrow = fs->as.fn_s.is_arrow;
                 d.is_pub = pub_m;
+                d.has_body = fs->as.fn_s.body != NULL;
                 da_append(&s->as.behave_s.methods, d);
+                free(fs);
             }
         } else {
             advance_tok(p);
@@ -1253,19 +1420,22 @@ static Stmt* parse_impl(Parser* p, bool is_pub) {
 
     consume(p, TOK_LBRACE, "expected '{'");
     while (!is_at(p, TOK_RBRACE) && !is_at(p, TOK_EOF)) {
-        if (match_tok(p, TOK_FN)) {
-            Token* mn = consume(p, TOK_IDENT, "expected method name");
-            FnDecl m = {0};
-            m.name = kodas_strndup(mn->start, mn->length);
-            m.params = parse_params(p);
-            if (match_tok(p, TOK_ARROW)) m.ret_type = parse_type(p);
-            if (match_tok(p, TOK_FAT_ARROW)) {
-                m.body = parse_expr(p);
-                m.is_arrow = true;
-            } else if (is_at(p, TOK_LBRACE)) {
-                m.body = parse_primary(p);
+        bool pub_m = match_tok(p, TOK_PUB);
+        if (is_at(p, TOK_FN)) {
+            advance_tok(p); // consume 'fn'
+            Stmt* fs = parse_fn(p, pub_m);
+            if (fs) {
+                FnDecl m; memset(&m,0,sizeof(m));
+                m.name = fs->as.fn_s.name;
+                m.params = fs->as.fn_s.params;
+                m.ret_type = fs->as.fn_s.ret_type;
+                m.body = fs->as.fn_s.body;
+                m.is_arrow = fs->as.fn_s.is_arrow;
+                m.is_pub = pub_m;
+                m.has_body = fs->as.fn_s.body != NULL;
+                da_append(&s->as.impl_s.methods, m);
+                free(fs);
             }
-            da_append(&s->as.impl_s.methods, m);
         } else {
             advance_tok(p);
         }

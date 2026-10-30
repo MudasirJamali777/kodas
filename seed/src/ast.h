@@ -139,6 +139,7 @@ struct Expr {
         struct { Expr* cond; Expr* then_val; Expr* else_val; } then_else;
         struct { Expr* object; char* field; Expr* value; } field_assign;
         struct { Expr* elem; } list_push;
+        struct { Expr* elem; char* var; char* idx_var; Expr* iter; Expr* cond; } comp;
         Expr* expr;  // generic sub-expression for show/assert/give/stop/skip
     } as;
 };
