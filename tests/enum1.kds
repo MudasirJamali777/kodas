@@ -1,0 +1,4 @@
+enum Color { Red, Green, Blue }
+fn main() {
+    show("enum works")
+}

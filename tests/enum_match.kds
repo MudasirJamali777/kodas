@@ -1,0 +1,4 @@
+enum Option { Some(Int), None }
+fn main() {
+    show("enum match")
+}

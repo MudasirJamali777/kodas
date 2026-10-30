@@ -1,0 +1,20 @@
+struct Point { x: Int, y: Int }
+behave Point {
+    fn new(x: Int, y: Int) -> Point {
+        give Point { x: x, y: y }
+    }
+    fn add(self, other: Point) -> Point {
+        give Point { x: self.x + other.x, y: self.y + other.y }
+    }
+    fn display(self) {
+        show("Point(" + str(self.x) + "," + str(self.y) + ")")
+    }
+}
+fn main() {
+    let a = Point.new(1, 2)
+    let b = Point.new(3, 4)
+    a.display()
+    b.display()
+    let c = a.add(b)
+    c.display()
+}
