@@ -1,0 +1,8 @@
+fn abs(n) {
+    if n < 0 { return -n }
+    give n
+}
+fn main() {
+    show(abs(5))
+    show(abs(-3))
+}
