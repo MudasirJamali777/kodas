@@ -1,0 +1,13 @@
+fn describe(n) {
+    let r = match n {
+        0 => "zero",
+        1 => "one",
+        _ => "other"
+    }
+    give r
+}
+fn main() {
+    show(describe(0))
+    show(describe(1))
+    show(describe(7))
+}

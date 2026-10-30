@@ -1,16 +1,18 @@
--- Math tests in Kodas
-let a = 10
-let b = 3
-
-show "a = {a}, b = {b}"
-show "a + b = {a + b}"
-show "a - b = {a - b}"
-show "a * b = {a * b}"
-show "a / b = {a / b}"
-show "a % b = {a % b}"
-show "a == b: {a == b}"
-show "a > b: {a > b}"
-
-let radius = 5.0
-let area = PI * radius * radius
-show "Area of circle r=5: {area}"
+fn fact(n) { if n<=1 { give 1 } give n * fact(n-1) }
+fn sum_to(n) {
+    let s = 0
+    let i = 1
+    while i <= n {
+        s = s + i
+        i = i + 1
+    }
+    give s
+}
+fn main() {
+    show("fact(10) = " + str(fact(10)))
+    show("sum_to(100) = " + str(sum_to(100)))
+    show("5 + 3 = " + str(5+3))
+    show("10 / 3 = " + str(10/3))
+    show("10.0 / 3 = " + str(10.0/3))
+    show("3 > 2 = " + str(3>2))
+}
