@@ -1,0 +1,5 @@
+fn main() {
+    let m = {"name": "alice", "age": "30"}
+    show("map created")
+    show(m["name"])
+}

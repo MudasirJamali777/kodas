@@ -1,23 +1,32 @@
-Kodas Sprint 8 - KVal Native C Backend
-======================================
+Kodas Sprint 9 - Native backend expansion
+========================================
 
-Applies on top of commit before f07776b.
+Applies on top of Sprint 8 (f07776b) or Sprint 7.
 
-Contents:
-  seed/src/codegen/krt.h           - KVal tagged-union runtime header (NEW)
-  seed/src/codegen/krt.c           - KRT runtime implementation (NEW)
-  seed/src/codegen/codegen_krt.c   - Native C code generator (NEW)
-  seed/src/codegen/codegen_c.h     - minor interface tweak (MODIFIED)
-  seed/src/fs.h / seed/src/fs.c    - small fs helper for build pipeline (MODIFIED)
-  seed/src/main.c                  - wires cmd_build into KRT backend (MODIFIED)
-  kodas-sprint8.patch              - single git-format-patch for the whole commit
-  README.txt                       - this file
+Adds native compilation support for:
+  - match (literal / wildcard / binding / enum-variant patterns)
+  - for x in col { ... } and for i, x in col { ... }
+  - integer ranges a..b (exclusive) and a..=b (inclusive) in for-in
+  - set literals {a, b, c}
+  - map literals {key: val, ...} with indexing
+  - string interpolation "Hello, ${name}!"
+  - standalone 'while' and 'for' (previously only 'loop while')
+  - return statement (early return from function)
+  - enum declarations (registers as type-value for future variant construction)
+  - test "name" { ... } blocks (run automatically, print "ok" on success)
+  - chained static/instance methods: Point.new(1,2).add(b).display()
+  - soft keywords 'new' / 'type' / 'self' as valid method/function names
+  - lambdas parsed and emitted as __lambda_N stubs (env captures still WIP)
 
-To apply via patch file:
-  cd <your-kodas-repo>
-  git am kodas-sprint8.patch
-  make          # from seed/
+Also fixes:
+  - behave/impl method bodies now reuse parse_fn, fixing hang when a method
+    body contains a struct literal (was caused by inline parser re-implementation)
+  - double-release of for-in loop variables caused segfault on iteration 2+
+  - retain-on-assign for match/interp results (use-after-free)
+  - global table size increased to 4096 entries
+  - set/map/block disambiguation in brace parsing (no longer misidentifies
+    { s = s + i } as a set literal)
+  - two-pass codegen counts lambdas before emitting, avoiding 256 placeholder decls
 
-To apply by copying files over (if you don't use the patch):
-  cp -r seed/ <your-kodas-repo>/
-  cd seed && make
+Applies via:  git am kodas-sprint9.patch
+Then:         cd seed && make
