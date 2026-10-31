@@ -225,11 +225,11 @@ static void cg_expr(CG*g,Expr*e,const char*T){
         case EXPR_OK:{if(e->as.result_e.value){char*v=etmp(g,e->as.result_e.value);cg_p(g,"%s=k_ok(%s);",T,v);rel(g,v);}else cg_p(g,"%s=k_ok(k_bool(true));",T);return;}
         case EXPR_ERR:{if(e->as.result_e.value){char*v=etmp(g,e->as.result_e.value);cg_p(g,"%s=k_err(%s);",T,v);rel(g,v);}else cg_p(g,"%s=k_err(k_str(\"error\"));",T);return;}
         case EXPR_PIPE:case EXPR_ERR_PIPE:{bool iserr=e->kind==EXPR_ERR_PIPE;char*acc=etmp(g,e->as.pipe.callee);
-            for(int pi=0;pi<e->as.pipe.pipe_count;pi++){char*fnv=etmp(g,e->as.pipe.pipelines[pi]);char*nxt=fresh_t(g);
-                if(iserr)cg_p(g,"%s=k_pipe(%s,%s);",nxt,acc,fnv);
+            for(int pi=0;pi<e->as.pipe.pipe_count;pi++){char*fnv=etmp(g,e->as.pipe.pipelines[pi]);char*nxt=new_t();t_i++;cg_p(g,"KVal* %s=NULL;",nxt);
+                if(iserr){cg_p(g,"%s=k_pipe(%s,%s);",nxt,acc,fnv);}
                 else{char*arr=new_a();cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*1);",arr);cg_p(g,"%s[0]=%s;",arr,acc);cg_p(g,"%s=k_call(%s,1,%s);",nxt,fnv,arr);}
                 rel(g,acc);rel(g,fnv);acc=nxt;}
-            cg_p(g,"%s=%s;",T,acc);rel(g,acc);return;}
+            cg_p(g,"%s=%s;",T,acc);return;}
         case EXPR_IF:{char*cv=etmp(g,e->as.if_e.cond);cg_p(g,"if(k_truthy(%s)){",cv);g->indent+=2;cg_expr(g,e->as.if_e.then_branch,T);g->indent-=2;cg_p(g,"}else{");g->indent+=2;
             if(e->as.if_e.else_branch)cg_expr(g,e->as.if_e.else_branch,T);else cg_p(g,"%s=k_null();",T);g->indent-=2;cg_p(g,"}");rel(g,cv);return;}
         case EXPR_BLOCK:{scope_push(g);for(int i=0;i<e->as.block.stmts.count;i++)cg_stmt(g,e->as.block.stmts.items[i]);cg_p(g,"%s=k_null();",T);scope_pop(g);return;}
