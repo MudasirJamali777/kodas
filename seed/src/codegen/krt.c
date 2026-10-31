@@ -72,6 +72,30 @@ KVal* k_char(char c) { KVal* v = k_new(K_CHAR); v->as.char_v = c; return v; }
 // Type-as-value for static method dispatch (e.g. Point.new(...)).
 // Name is a static string literal supplied by codegen, so no allocation/free.
 KVal* k_type(const char* name) { KVal* v = k_new(K_TYPE); v->as.type_v = name; return v; }
+const char* k_type_name(KVal* v) {
+    switch (v->kind) {
+        case K_NULL: return "null";
+        case K_BOOL: return "bool";
+        case K_INT: return "int";
+        case K_FLOAT: return "float";
+        case K_CHAR: return "char";
+        case K_STRING: return "str";
+        case K_LIST: return "list";
+        case K_TUPLE: return "tuple";
+        case K_MAP: return "map";
+        case K_SET: return "set";
+        case K_NATIVE: return "native";
+        case K_CLOSURE: return "fn";
+        case K_STRUCT: return v->as.struct_v->name;
+        case K_ENUM: return v->as.enum_v->variant;
+        case K_MAYBE: return v->is_error ? "empty" : "some";
+        case K_RESULT: return v->is_error ? "err" : "ok";
+        case K_MUT_REF: return "mut";
+        case K_TYPE: return v->as.type_v;
+        case K_RANGE: return "range";
+        default: return "?";
+    }
+}
 
 // Range (start..end / start..=end) — integer range for for-in loops.
 KVal* k_range(int64_t start, int64_t end, bool inclusive) {
@@ -770,12 +794,17 @@ KVal* k_to_float(KVal* v) {
 
 // ── Error pipes / unwrap ───────────────────────────────────────────────
 KVal* k_pipe(KVal* v, KVal* fn) {
-    // Short-circuit on error/empty
-    if (v->kind == K_RESULT && v->is_error) return k_retain(v);
-    if (v->kind == K_MAYBE && v->is_error) return k_retain(v);
-    KVal* args[1] = { v };
+    // Error pipe: unwrap ok/just, call fn with inner value; short-circuit err/none; pass-through plain values.
+    // Does NOT consume v (caller must release); returns a new retained ref.
+    KVal* retained_v = k_retain(v);
+    if ((retained_v->kind == K_RESULT || retained_v->kind == K_MAYBE) && retained_v->is_error) return retained_v;
+    KVal* inner;
+    if (retained_v->kind == K_RESULT || retained_v->kind == K_MAYBE) inner = k_retain(retained_v->as.wrapped ? retained_v->as.wrapped : k_null());
+    else inner = k_retain(retained_v);
+    KVal* args[1] = { inner };
     KVal* r = k_call(fn, 1, args);
-    k_release(v);
+    k_release(inner);
+    k_release(retained_v);
     return r;
 }
 
@@ -907,17 +936,25 @@ KVal* k_method(KVal* obj, const char* name, int argc, KVal** argv) {
         k_throw(k_errf("unknown static method '%s.%s'", obj->as.type_v, name));
         return k_null();
     }
-    // Dispatch: if obj is a struct/enum, look up global "TypeName_method" and pass self as first arg.
+    // Dispatch: if obj is a struct, first check for a field that is callable (module-style: io.println(...))
     if (obj->kind == K_STRUCT) {
+        int fi = k_find_field(obj->as.struct_v, name);
+        if (fi >= 0) {
+            KVal* fn = obj->as.struct_v->fields[fi];
+            if (fn->kind == K_NATIVE || fn->kind == K_CLOSURE) {
+                return k_call(fn, argc, argv);
+            }
+        }
+        // Otherwise: look up global "TypeName_method" and pass self as first arg.
         char buf[512];
         snprintf(buf, sizeof(buf), "%s_%s", obj->as.struct_v->name, name);
-        KVal* fn = k_global_get(buf);
-        if (fn && fn->kind == K_CLOSURE) {
+        KVal* mfn = k_global_get(buf);
+        if (mfn && mfn->kind == K_CLOSURE) {
             int targc = argc + 1;
             KVal** targv = (KVal**)alloca(sizeof(KVal*)*targc);
             targv[0] = obj;
             for (int i = 0; i < argc; i++) targv[i+1] = argv[i];
-            KVal* r = k_call(fn, targc, targv);
+            KVal* r = k_call(mfn, targc, targv);
             return r;
         }
     }
@@ -1056,6 +1093,102 @@ static KVal* b_exit(int argc, KVal** argv) {
     if (argc >= 1 && argv[0]->kind == K_INT) code = (int)argv[0]->as.int_v;
     exit(code); return k_null();
 }
+// println: prints each argument with k_show followed by space then newline
+static KVal* b_println(int argc, KVal** argv) {
+    for (int i = 0; i < argc; i++) { if(i)fputc(' ',stdout);k_show_into(argv[i],stdout); }
+    fputc('\n', stdout); fflush(stdout);
+    return k_null();
+}
+static KVal* b_input(int argc, KVal** argv) {
+    if (argc >= 1) { k_show_into(argv[0], stdout); fflush(stdout); }
+    char buf[4096];
+    if (!fgets(buf, sizeof(buf), stdin)) return k_str("");
+    size_t n = strlen(buf); if(n && buf[n-1]=='\n') buf[n-1]=0;
+    return k_str(buf);
+}
+// Higher-order list functions
+static KVal* b_map(int argc, KVal** argv) {
+    REQUIRE(2,"map(list, fn)");
+    KVal* lst = argv[0]; KVal* fn = argv[1];
+    if (lst->kind != K_LIST && lst->kind != K_TUPLE) k_throw(k_err(k_str("map: not list")));
+    KList* l = (lst->kind==K_LIST)?lst->as.list:lst->as.tuple;
+    KVal* out = k_list_empty();
+    for (int i = 0; i < l->count; i++) {
+        KVal* arg[1] = { l->items[i] };
+        KVal* r = k_call(fn, 1, arg);
+        k_list_push(out, r);
+        k_release(r);
+    }
+    return out;
+}
+static KVal* b_filter(int argc, KVal** argv) {
+    REQUIRE(2,"filter(list, fn)");
+    KVal* lst = argv[0]; KVal* fn = argv[1];
+    if (lst->kind != K_LIST && lst->kind != K_TUPLE) k_throw(k_err(k_str("filter: not list")));
+    KList* l = (lst->kind==K_LIST)?lst->as.list:lst->as.tuple;
+    KVal* out = k_list_empty();
+    for (int i = 0; i < l->count; i++) {
+        KVal* arg[1] = { l->items[i] };
+        KVal* r = k_call(fn, 1, arg);
+        bool keep = k_truthy(r);
+        k_release(r);
+        if (keep) k_list_push(out, l->items[i]);
+    }
+    return out;
+}
+static KVal* b_reduce(int argc, KVal** argv) {
+    REQUIRE(3,"reduce(list, init, fn)");
+    KVal* lst = argv[0]; KVal* acc = argv[1]; KVal* fn = argv[2];
+    if (lst->kind != K_LIST && lst->kind != K_TUPLE) k_throw(k_err(k_str("reduce: not list")));
+    KList* l = (lst->kind==K_LIST)?lst->as.list:lst->as.tuple;
+    KVal* cur = k_retain(acc);
+    for (int i = 0; i < l->count; i++) {
+        KVal* arg[2] = { cur, l->items[i] };
+        KVal* nx = k_call(fn, 2, arg);
+        k_release(cur); cur = nx;
+    }
+    return cur;
+}
+static KVal* b_foreach(int argc, KVal** argv) {
+    REQUIRE(2,"foreach(list, fn)");
+    KVal* lst = argv[0]; KVal* fn = argv[1];
+    if (lst->kind != K_LIST && lst->kind != K_TUPLE) k_throw(k_err(k_str("foreach: not list")));
+    KList* l = (lst->kind==K_LIST)?lst->as.list:lst->as.tuple;
+    for (int i = 0; i < l->count; i++) {
+        KVal* arg[1] = { l->items[i] };
+        KVal* r = k_call(fn, 1, arg);
+        k_release(r);
+    }
+    return k_null();
+}
+// Introspection / type name
+static KVal* b_type_name(int argc, KVal** argv) {
+    REQUIRE(1,"type_name");
+    return k_str(k_type_name(argv[0]));
+}
+static KVal* b_panic(int argc, KVal** argv) {
+    if (argc >= 1) k_throw(k_err(k_retain(argv[0])));
+    else k_throw(k_err(k_str("panic")));
+    return k_null();
+}
+// Helper to build a module object (a struct-like KVal holding named functions)
+#define MOD_MAX_FIELDS 64
+static KVal* k_module(const char* name) {
+    KVal* v = k_new(K_STRUCT);
+    KStruct* s = (KStruct*)k_alloc(sizeof(KStruct));
+    s->name = name; s->field_count = 0;
+    s->field_names = (const char**)k_alloc(sizeof(char*)*MOD_MAX_FIELDS);
+    s->fields = (KVal**)k_alloc(sizeof(KVal*)*MOD_MAX_FIELDS);
+    v->as.struct_v = s;
+    return v;
+}
+static void k_mod_set(KVal* mod, const char* name, KVal* val) {
+    KStruct* s = mod->as.struct_v;
+    if (s->field_count >= MOD_MAX_FIELDS) { fprintf(stderr,"module too full: %s\n",name); exit(1); }
+    s->field_names[s->field_count] = k_strdup(name);
+    s->fields[s->field_count] = k_retain(val);
+    s->field_count++;
+}
 
 // ── Stdlib registration ────────────────────────────────────────────────
 #define DEF_GLOBAL(name, fn) k_global_set((name), k_native((fn), (name)))
@@ -1162,6 +1295,55 @@ void k_register_stdlib(void) {
     DEF_GLOBAL("pow", b_pow);
     DEF_GLOBAL("clock", b_clock);
     DEF_GLOBAL("exit", b_exit);
+    DEF_GLOBAL("println", b_println);
+    DEF_GLOBAL("input", b_input);
+    DEF_GLOBAL("map", b_map);
+    DEF_GLOBAL("filter", b_filter);
+    DEF_GLOBAL("reduce", b_reduce);
+    DEF_GLOBAL("foreach", b_foreach);
+    DEF_GLOBAL("type_name", b_type_name);
+    DEF_GLOBAL("panic", b_panic);
+    // Module objects (io, math, str, list, ...)
+    {
+        KVal* io = k_module("io");
+        k_mod_set(io, "println", k_native(b_println,"io.println"));
+        k_mod_set(io, "print", k_native(b_show,"io.print"));
+        k_mod_set(io, "input", k_native(b_input,"io.input"));
+        k_global_set("io", io); k_release(io);
+        KVal* m = k_module("math");
+        k_mod_set(m, "sqrt", k_native(b_sqrt,"math.sqrt"));
+        k_mod_set(m, "sin", k_native(b_sin,"math.sin"));
+        k_mod_set(m, "cos", k_native(b_cos,"math.cos"));
+        k_mod_set(m, "tan", k_native(b_tan,"math.tan"));
+        k_mod_set(m, "log", k_native(b_log,"math.log"));
+        k_mod_set(m, "exp", k_native(b_exp,"math.exp"));
+        k_mod_set(m, "floor", k_native(b_floor,"math.floor"));
+        k_mod_set(m, "ceil", k_native(b_ceil,"math.ceil"));
+        k_mod_set(m, "round", k_native(b_round,"math.round"));
+        k_mod_set(m, "pow", k_native(b_pow,"math.pow"));
+        k_mod_set(m, "abs", k_native(b_abs,"math.abs"));
+        k_mod_set(m, "min", k_native(b_min,"math.min"));
+        k_mod_set(m, "max", k_native(b_max,"math.max"));
+        k_global_set("math", m); k_release(m);
+        KVal* sm = k_module("str");
+        k_mod_set(sm, "from_int", k_native(b_str,"str.from_int"));
+        k_mod_set(sm, "split", k_native(b_split,"str.split"));
+        k_mod_set(sm, "contains", k_native(b_contains,"str.contains"));
+        k_mod_set(sm, "trim", k_native(b_trim,"str.trim"));
+        k_mod_set(sm, "chars", k_native(b_chars,"str.chars"));
+        k_mod_set(sm, "lines", k_native(b_lines,"str.lines"));
+        k_global_set("str", sm); k_release(sm);
+        KVal* lm = k_module("list");
+        k_mod_set(lm, "map", k_native(b_map,"list.map"));
+        k_mod_set(lm, "filter", k_native(b_filter,"list.filter"));
+        k_mod_set(lm, "reduce", k_native(b_reduce,"list.reduce"));
+        k_mod_set(lm, "foreach", k_native(b_foreach,"list.foreach"));
+        k_mod_set(lm, "push", k_native(b_push,"list.push"));
+        k_mod_set(lm, "pop", k_native(b_pop,"list.pop"));
+        k_mod_set(lm, "len", k_native(b_len,"list.len"));
+        k_mod_set(lm, "range", k_native(b_range,"list.range"));
+        k_global_set("list", lm); k_release(lm);
+    }
     // Constants
     k_global_set("PI", k_float(3.14159265358979323846));
     k_global_set("E",  k_float(2.71828182845904523536));
