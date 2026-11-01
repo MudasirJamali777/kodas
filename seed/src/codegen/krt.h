@@ -101,6 +101,12 @@ KVal* k_struct_new(const char* name, int field_count, const char** names, ...);
 KVal* k_enum_new(const char* variant, int payload_count, ...);
 KVal* k_type(const char* name);             // type-as-value for static dispatch
 const char* k_type_name(KVal* v);
+KVal* k_module(const char* name);
+void  k_mod_set(KVal* mod, const char* name, KVal* val);
+void* k_alloc(size_t sz);
+KVal* k_new(KKind kind);
+void  k_index_set(KVal* col, KVal* key, KVal* val);
+KVal* k_str_len(const char* s, int n);
 KVal* k_range(int64_t start, int64_t end, bool inclusive);
 KVal* k_set_empty(void);
 void  k_set_add(KVal* set, KVal* v);
