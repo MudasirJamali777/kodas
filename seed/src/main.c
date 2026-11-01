@@ -341,27 +341,38 @@ static int cmd_build(const char* file) {
         return cmd_run(file);
     }
 
-    // Locate krt.c / krt.h relative to kodas binary.
-    char krt_dir[1024], krt_c[1024], krt_hdir[1024], src_dir[1024];
+    // Locate krt.c / stdlib_extra.c / krt.h relative to kodas binary.
+    char krt_dir[1024], krt_c[1024], extra_c[1024], krt_hdir[1024], src_dir[1024];
     const char* ed = fs_exe_dir();
     snprintf(krt_dir, sizeof(krt_dir), "%s/../src/codegen", ed && ed[0] ? ed : ".");
     snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+    snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
     FILE* fk = fopen(krt_c, "r");
     if (!fk) {
         snprintf(krt_dir, sizeof(krt_dir), "src/codegen");
         snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+        snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
         fk = fopen(krt_c, "r");
     }
     if (fk) fclose(fk);
     snprintf(krt_hdir, sizeof(krt_hdir), "%s", krt_dir);
     snprintf(src_dir, sizeof(src_dir), "%s/..", krt_dir);
+    // Check if stdlib_extra.c exists (it may not in stripped distributions).
+    FILE* fx = fopen(extra_c, "r"); bool has_extra = fx != NULL; if (fx) fclose(fx);
 
     printf("  [2/3] Compiling %s -> %s (using %s)\n", c_path, out_path, cc_path);
     char cmd[8192];
+    const char* extra_q = has_extra ? "\"" : "";
     if (strcmp(cc_path, "cl") == 0) {
-        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /DKRT_MAIN /I \"%s\" /I \"%s\" \"%s\" \"%s\" /Fe%s", src_dir, krt_hdir, krt_c, c_path, out_path);
+        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /DKRT_MAIN /I \"%s\" /I \"%s\" \"%s\" %s%s%s \"%s\" /Fe%s",
+                 src_dir, krt_hdir, krt_c,
+                 extra_q, has_extra?extra_c:"", extra_q,
+                 c_path, out_path);
     } else {
-        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -I \"%s\" -I \"%s\" \"%s\" \"%s\" -o \"%s\" -lm", cc_path, src_dir, krt_hdir, krt_c, c_path, out_path);
+        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -pthread -I \"%s\" -I \"%s\" \"%s\" %s%s%s \"%s\" -o \"%s\" -lm",
+                 cc_path, src_dir, krt_hdir, krt_c,
+                 extra_q, has_extra?extra_c:"", extra_q,
+                 c_path, out_path);
     }
     int rc = system(cmd);
     if (rc != 0) {
