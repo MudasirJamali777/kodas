@@ -30,7 +30,7 @@ KVal* k_assert(KVal* cond, KVal* msg) {
 }
 
 // ── Memory helpers ─────────────────────────────────────────────────────
-static void* k_alloc(size_t n) {
+void* k_alloc(size_t n) {
     void* p = malloc(n);
     if (!p) { fprintf(stderr, "out of memory\n"); exit(1); }
     return p;
@@ -44,7 +44,7 @@ static char* k_strdup(const char* s) {
 }
 
 // ── Allocation of KVal ─────────────────────────────────────────────────
-static KVal* k_new(KKind kind) {
+KVal* k_new(KKind kind) {
     KVal* v = (KVal*)k_alloc(sizeof(KVal));
     v->kind = kind;
     v->is_error = false;
@@ -1173,7 +1173,7 @@ static KVal* b_panic(int argc, KVal** argv) {
 }
 // Helper to build a module object (a struct-like KVal holding named functions)
 #define MOD_MAX_FIELDS 64
-static KVal* k_module(const char* name) {
+KVal* k_module(const char* name) {
     KVal* v = k_new(K_STRUCT);
     KStruct* s = (KStruct*)k_alloc(sizeof(KStruct));
     s->name = name; s->field_count = 0;
@@ -1182,7 +1182,7 @@ static KVal* k_module(const char* name) {
     v->as.struct_v = s;
     return v;
 }
-static void k_mod_set(KVal* mod, const char* name, KVal* val) {
+void k_mod_set(KVal* mod, const char* name, KVal* val) {
     KStruct* s = mod->as.struct_v;
     if (s->field_count >= MOD_MAX_FIELDS) { fprintf(stderr,"module too full: %s\n",name); exit(1); }
     s->field_names[s->field_count] = k_strdup(name);
@@ -1325,24 +1325,25 @@ void k_register_stdlib(void) {
         k_mod_set(m, "min", k_native(b_min,"math.min"));
         k_mod_set(m, "max", k_native(b_max,"math.max"));
         k_global_set("math", m); k_release(m);
-        KVal* sm = k_module("str");
-        k_mod_set(sm, "from_int", k_native(b_str,"str.from_int"));
-        k_mod_set(sm, "split", k_native(b_split,"str.split"));
-        k_mod_set(sm, "contains", k_native(b_contains,"str.contains"));
-        k_mod_set(sm, "trim", k_native(b_trim,"str.trim"));
-        k_mod_set(sm, "chars", k_native(b_chars,"str.chars"));
-        k_mod_set(sm, "lines", k_native(b_lines,"str.lines"));
-        k_global_set("str", sm); k_release(sm);
-        KVal* lm = k_module("list");
-        k_mod_set(lm, "map", k_native(b_map,"list.map"));
-        k_mod_set(lm, "filter", k_native(b_filter,"list.filter"));
-        k_mod_set(lm, "reduce", k_native(b_reduce,"list.reduce"));
-        k_mod_set(lm, "foreach", k_native(b_foreach,"list.foreach"));
-        k_mod_set(lm, "push", k_native(b_push,"list.push"));
-        k_mod_set(lm, "pop", k_native(b_pop,"list.pop"));
-        k_mod_set(lm, "len", k_native(b_len,"list.len"));
-        k_mod_set(lm, "range", k_native(b_range,"list.range"));
-        k_global_set("list", lm); k_release(lm);
+        // "strings" / "lists" modules — avoid clobbering top-level str()/list() functions.
+        KVal* sm = k_module("strings");
+        k_mod_set(sm, "from_int", k_native(b_str,"strings.from_int"));
+        k_mod_set(sm, "split", k_native(b_split,"strings.split"));
+        k_mod_set(sm, "contains", k_native(b_contains,"strings.contains"));
+        k_mod_set(sm, "trim", k_native(b_trim,"strings.trim"));
+        k_mod_set(sm, "chars", k_native(b_chars,"strings.chars"));
+        k_mod_set(sm, "lines", k_native(b_lines,"strings.lines"));
+        k_global_set("strings", sm); k_release(sm);
+        KVal* lm = k_module("lists");
+        k_mod_set(lm, "map", k_native(b_map,"lists.map"));
+        k_mod_set(lm, "filter", k_native(b_filter,"lists.filter"));
+        k_mod_set(lm, "reduce", k_native(b_reduce,"lists.reduce"));
+        k_mod_set(lm, "foreach", k_native(b_foreach,"lists.foreach"));
+        k_mod_set(lm, "push", k_native(b_push,"lists.push"));
+        k_mod_set(lm, "pop", k_native(b_pop,"lists.pop"));
+        k_mod_set(lm, "range", k_native(b_range,"lists.range"));
+        k_global_set("lists", lm); k_release(lm);
+        // Also aliased as list_mod via the `list` name: only if no list() global exists. For now, don't overwrite.
     }
     // Constants
     k_global_set("PI", k_float(3.14159265358979323846));
@@ -1357,6 +1358,8 @@ void k_register_stdlib(void) {
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
     k_register_stdlib();
+    extern void k_register_stdlib_extra(void);
+    k_register_stdlib_extra();
 
     KFrame frame;
     frame.prev = k_current_frame;
