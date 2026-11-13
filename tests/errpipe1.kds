@@ -1,0 +1,8 @@
+fn div(a, b) {
+    if b == 0 { give err("div by zero") }
+    give ok(a / b)
+}
+fn main() {
+    let x = div(10, 2)
+    show(x)
+}
