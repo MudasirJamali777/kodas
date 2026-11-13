@@ -1,0 +1,4 @@
+fn main() {
+    let xs = [i*2 for i in 1..=5]
+    show(xs)
+}
