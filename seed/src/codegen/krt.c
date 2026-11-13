@@ -569,23 +569,41 @@ static int k_find_field(KStruct* s, const char* name) {
 }
 
 KVal* k_get_field(KVal* obj, const char* name) {
+    if (obj->kind == K_MUT_REF) return k_get_field(obj->as.mutref->inner, name);
     if (obj->kind == K_STRUCT) {
         int i = k_find_field(obj->as.struct_v, name);
         if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
         return k_retain(obj->as.struct_v->fields[i]);
     }
-    if (obj->kind == K_MUT_REF) return k_get_field(obj->as.mutref->inner, name);
+    // Allow map.field as a shorthand for map["field"] (used by http req/resp,
+    // modules-as-structs, and dynamic objects).
+    if (obj->kind == K_MAP) {
+        KVal* key = k_str(name);
+        KMapEntry* e = k_map_lookup(obj->as.map, key, NULL);
+        k_release(key);
+        if (!e) k_throw(k_errf("object has no field '%s'", name));
+        return k_retain(e->val);
+    }
     k_throw(k_errf("cannot access field '%s' on non-struct", name));
     return k_null();
 }
 
 void k_set_field(KVal* obj, const char* name, KVal* val) {
     if (obj->kind == K_MUT_REF) { k_set_field(obj->as.mutref->inner, name, val); return; }
-    if (obj->kind != K_STRUCT) k_throw(k_err(k_str("field assign on non-struct")));
-    int i = k_find_field(obj->as.struct_v, name);
-    if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
-    k_release(obj->as.struct_v->fields[i]);
-    obj->as.struct_v->fields[i] = k_retain(val);
+    if (obj->kind == K_STRUCT) {
+        int i = k_find_field(obj->as.struct_v, name);
+        if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
+        k_release(obj->as.struct_v->fields[i]);
+        obj->as.struct_v->fields[i] = k_retain(val);
+        return;
+    }
+    if (obj->kind == K_MAP) {
+        KVal* key = k_str(name);
+        k_index_set(obj, key, val);
+        k_release(key);
+        return;
+    }
+    k_throw(k_err(k_str("field assign on non-struct")));
 }
 
 KVal* k_index(KVal* col, KVal* key) {
