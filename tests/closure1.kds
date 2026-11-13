@@ -1,0 +1,7 @@
+fn make_adder(n) {
+    give fn(x) => x + n
+}
+fn main() {
+    let add5 = make_adder(5)
+    show(add5(10))
+}

@@ -1,0 +1,7 @@
+fn apply(f, x) { give f(x) }
+fn main() {
+    let a = 10
+    let b = 20
+    let sum = fn(x) => x + a + b
+    show(apply(sum, 5))
+}
