@@ -1360,6 +1360,8 @@ int main(int argc, char** argv) {
     k_register_stdlib();
     extern void k_register_stdlib_extra(void);
     k_register_stdlib_extra();
+    extern void k_register_stdlib_http(void);
+    k_register_stdlib_http();
 
     KFrame frame;
     frame.prev = k_current_frame;
