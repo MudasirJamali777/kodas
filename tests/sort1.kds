@@ -1,0 +1,12 @@
+fn qsort(xs) {
+    if len(xs) <= 1 { give xs }
+    let pivot = xs[0]
+    let rest = list.slice(xs, 1)
+    let left = filter(rest, fn(x) => x < pivot)
+    let right = filter(rest, fn(x) => x >= pivot)
+    give qsort(left) + [pivot] + qsort(right)
+}
+fn main() {
+    let data = [3,1,4,1,5,9,2,6,5,3,5]
+    io.println("sorted:", qsort(data))
+}

@@ -1,0 +1,10 @@
+fn main() {
+    let nums = [1,2,3,4,5]
+    let doubled = map(nums, fn(x) => x * 2)
+    show(doubled)
+    let evens = filter(nums, fn(x) => x % 2 == 0)
+    show(evens)
+    let total = reduce(nums, 0, fn(acc, x) => acc + x)
+    println("total =", total)
+    io.println("hello from io!")
+}
