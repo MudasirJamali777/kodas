@@ -1,0 +1,6 @@
+fn main() {
+    let evens = filter(range(1, 101), fn(n) => n % 2 == 0)
+    let squares = map(evens, fn(n) => n * n)
+    let result = reduce(squares, 0, fn(a, b) => a + b)
+    io.println("sum of squares of evens 1..100 =", result)
+}

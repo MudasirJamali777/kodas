@@ -1,0 +1,7 @@
+fn add1(r) { give ok(r + 1) }
+fn main() {
+    let x = ok(5) |?> add1
+    show(x)
+    let y = err("oops") |?> add1
+    show(y)
+}

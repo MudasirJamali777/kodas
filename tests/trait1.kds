@@ -1,0 +1,11 @@
+behave Printable { fn show(self) }
+struct Point { x, y }
+impl Printable for Point {
+    fn show(self) {
+        io.println("Point(" + to_str(self.x) + "," + to_str(self.y) + ")")
+    }
+}
+fn main() {
+    let p = Point {x: 1, y: 2}
+    p.show()
+}
