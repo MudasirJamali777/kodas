@@ -230,6 +230,19 @@ static Expr* parse_primary(Parser* p) {
     Token* tk = peek_tok(p);
     Location loc = current_loc(p);
 
+    // TOK_SEMI is inserted by ASI between statements; when parse_expr reaches
+    // one mid-expression (which happens because let/rhs parsing calls
+    // parse_precedence starting at PREC_ASSIGN and the SEMI sits at the next
+    // token), stop gracefully with an empty expression instead of erroring.
+    // EOF is also a safe terminator. All other tokens fall through to the
+    // normal primary handling so closers/commas/colons produce proper errors
+    // at the right level rather than returning empty inside calls/blocks.
+    switch (tk->kind) {
+        case TOK_SEMI: case TOK_EOF:
+            return expr_new(EXPR_EMPTY, loc);
+        default: break;
+    }
+
     switch (tk->kind) {
         case TOK_INT: {
             advance_tok(p);
@@ -1571,6 +1584,8 @@ static Stmt* parse_stmt(Parser* p) {
         }
         default: {
             Expr* e = parse_expression(p);
+            // Consume optional trailing semicolon (explicit or ASI-inserted)
+            (void)match_tok(p, TOK_SEMI);
             Stmt* s = stmt_new(STMT_EXPR, loc);
             s->as.expr = e;
             return s;

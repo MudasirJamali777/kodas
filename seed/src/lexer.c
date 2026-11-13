@@ -72,7 +72,7 @@ static void skip_whitespace(Lexer* lex) {
         char c = peek(lex);
         switch (c) {
             case ' ': case '\r': case '\t': advance(lex); break;
-            case '\n': advance(lex); break;
+            case '\n': advance(lex); break;  /* advance() already bumps line and resets col */
             default: return;
         }
     }
@@ -518,6 +518,28 @@ Token lexer_next(Lexer* lex) {
     return error_token(lex, "unexpected character");
 }
 
+static bool token_ends_expr(TokenKind k) {
+    switch(k) {
+        case TOK_INT: case TOK_FLOAT: case TOK_STRING: case TOK_CHAR: case TOK_IDENT:
+        case TOK_RPAREN: case TOK_RBRACKET: case TOK_RBRACE:
+        case TOK_UNDERSCORE: case TOK_SELF: case TOK_EOF:
+            return true;
+        default: return false;
+    }
+}
+static bool token_starts_stmt(TokenKind k) {
+    switch(k) {
+        case TOK_IDENT: case TOK_INT: case TOK_FLOAT: case TOK_STRING: case TOK_CHAR:
+        case TOK_LPAREN: case TOK_LBRACKET: case TOK_LBRACE:
+        case TOK_MINUS: case TOK_NOT: case TOK_TILDE: case TOK_AMP: case TOK_STAR:
+        case TOK_IF: case TOK_LOOP: case TOK_WHILE: case TOK_FOR: case TOK_MATCH:
+        case TOK_LET: case TOK_SEAL: case TOK_RETURN: case TOK_GIVE: case TOK_STOP: case TOK_SKIP:
+        case TOK_SHOW: case TOK_ASSERT: case TOK_FN: case TOK_STRUCT: case TOK_ENUM:
+        case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_SELF: case TOK_TRUE: case TOK_FALSE:
+            return true;
+        default: return false;
+    }
+}
 void lexer_tokenize(Lexer* lex) {
     for (;;) {
         Token t = lexer_next(lex);
@@ -527,6 +549,35 @@ void lexer_tokenize(Lexer* lex) {
         if (lex->count >= lex->capacity) {
             lex->capacity = lex->capacity == 0 ? 64 : lex->capacity * 2;
             lex->tokens = (Token*)kodas_realloc(lex->tokens, lex->capacity * sizeof(Token));
+        }
+        // Automatic Semicolon Insertion (ASI): if previous token ends an expression and current
+        // token starts a statement on a later line, insert a TOK_SEMI between them.
+        if (lex->count > 0) {
+            Token* prev = &lex->tokens[lex->count-1];
+            // Tokens that continue to the next line (binary/prefix/postfix ops, openers, delimiters).
+            bool continues =
+                (prev->kind==TOK_PLUS||prev->kind==TOK_MINUS||prev->kind==TOK_STAR||prev->kind==TOK_SLASH||
+                 prev->kind==TOK_PERCENT||prev->kind==TOK_AMP||prev->kind==TOK_PIPE||prev->kind==TOK_CARET||
+                 prev->kind==TOK_EQ||prev->kind==TOK_EQEQ||prev->kind==TOK_NEQ||prev->kind==TOK_LT||
+                 prev->kind==TOK_GT||prev->kind==TOK_LTE||prev->kind==TOK_GTE||prev->kind==TOK_AND||
+                 prev->kind==TOK_OR||prev->kind==TOK_NOT||prev->kind==TOK_TILDE||
+                 prev->kind==TOK_DOT||prev->kind==TOK_COMMA||prev->kind==TOK_COLON||prev->kind==TOK_DOTDOT||
+                 prev->kind==TOK_DOTDOTEQ||prev->kind==TOK_ARROW||prev->kind==TOK_FAT_ARROW||
+                 prev->kind==TOK_PIPE_ARROW||prev->kind==TOK_OTHERWISE||
+                 prev->kind==TOK_LPAREN||prev->kind==TOK_LBRACKET||prev->kind==TOK_LBRACE);
+            if (!continues && prev->kind != TOK_SEMI && prev->kind != TOK_RBRACE
+                && t.line > prev->line && token_ends_expr(prev->kind) && token_starts_stmt(t.kind)) {
+                Token semi = {0};
+                semi.kind = TOK_SEMI;
+                semi.line = prev->line; semi.col = prev->col;
+                semi.start = prev->start; semi.length = 0;
+
+                if (lex->count >= lex->capacity) {
+                    lex->capacity *= 2;
+                    lex->tokens = (Token*)kodas_realloc(lex->tokens, lex->capacity * sizeof(Token));
+                }
+                lex->tokens[lex->count++] = semi;
+            }
         }
         lex->tokens[lex->count++] = t;
         if (t.kind == TOK_EOF || t.kind == TOK_ERROR) break;

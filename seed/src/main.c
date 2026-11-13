@@ -1,4 +1,5 @@
 /// main.c - Kodas CLI entry point
+#define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
 #include <stdio.h>
 #include <stdlib.h>
@@ -289,9 +290,91 @@ static int cmd_test(const char* path) {
     return total_failed > 0 ? 1 : 0;
 }
 
+// ── Import preprocessor ───────────────────────────────────────────
+// Replace `import "path"` lines with contents of that file, resolved relative
+// to the including file's directory. Deduplicates by absolute realpath.
+#define MAX_INCLUDES 64
+static char* g_loaded[MAX_INCLUDES]; static int g_loaded_n = 0;
+static bool already_loaded(const char* path) {
+    char rp[1024];
+    // realpath may fail; fallback to strcmp of given path
+    if (realpath(path, rp)) {
+        for (int i=0;i<g_loaded_n;i++) if (strcmp(g_loaded[i], rp)==0) return true;
+        if (g_loaded_n < MAX_INCLUDES) {
+            g_loaded[g_loaded_n] = strdup(rp); g_loaded_n++;
+        }
+        return false;
+    }
+    for (int i=0;i<g_loaded_n;i++) if (strcmp(g_loaded[i], path)==0) return true;
+    if (g_loaded_n < MAX_INCLUDES) { g_loaded[g_loaded_n]=strdup(path); g_loaded_n++; }
+    return false;
+}
+static char* dir_of(const char* path) {
+    const char* slash = strrchr(path, '/');
+    if (!slash) { static char dot[]="."; return dot; }
+    static char buf[1024];
+    size_t n = (size_t)(slash-path);
+    if (n >= sizeof(buf)) n = sizeof(buf)-1;
+    memcpy(buf, path, n); buf[n]=0;
+    return buf;
+}
+static char* join_path(const char* dir, const char* rel) {
+    static char buf[1024];
+    if (rel[0] == '/') snprintf(buf,sizeof(buf),"%s",rel);
+    else snprintf(buf,sizeof(buf),"%s/%s",dir,rel);
+    return buf;
+}
+static char* resolve_imports(const char* file) {
+    if (already_loaded(file)) return strdup("");
+    char* src = read_file(file);
+    if (!src) return NULL;
+    const char* dir = dir_of(file);
+    // Build output
+    size_t cap = strlen(src)*2+1, len=0;
+    char* out = malloc(cap);
+    #define OUT_APPEND(s,n) do{ while(len+(n)+1>cap){cap*=2;out=realloc(out,cap);} memcpy(out+len,(s),(n)); len+=(n); out[len]=0; }while(0)
+    const char* p = src;
+    while (*p) {
+        const char* line_start = p;
+        // find end of line
+        const char* nl = strchr(p, '\n');
+        const char* line_end = nl ? nl : p+strlen(p);
+        size_t llen = (size_t)(line_end - p);
+        // skip leading whitespace
+        const char* q = line_start;
+        while (q < line_end && (*q==' '||*q=='\t')) q++;
+        if (strncmp(q, "import", 6) == 0 && (q+6 < line_end) && (q[6]==' '||q[6]=='\t')) {
+            const char* s = q+6;
+            while (*s==' '||*s=='\t') s++;
+            if (*s == '"') {
+                s++;
+                const char* e = s;
+                while (e < line_end && *e != '"') e++;
+                if (e < line_end) {
+                    size_t plen = (size_t)(e-s);
+                    char* pbuf = malloc(plen+1);
+                    memcpy(pbuf, s, plen); pbuf[plen]=0;
+                    char* full = join_path(dir, pbuf);
+                    char* child = resolve_imports(full);
+                    free(pbuf);
+                    if (child) { OUT_APPEND(child, strlen(child)); free(child); }
+                    p = nl ? nl+1 : line_end;
+                    continue;
+                }
+            }
+        }
+        // copy line as-is
+        OUT_APPEND(line_start, llen);
+        if (nl) { OUT_APPEND("\n",1); p = nl+1; } else p = line_end;
+    }
+    free(src);
+    return out;
+}
+
 static int cmd_build(const char* file) {
     // KRT-based backend: full-language compilation.
-    char* source = read_file(file);
+    g_loaded_n = 0; // reset import tracker
+    char* source = resolve_imports(file);
     if (!source) { fprintf(stderr, "Error: failed to read '%s'\n", file); return 1; }
 
     Lexer lex;
@@ -342,36 +425,39 @@ static int cmd_build(const char* file) {
     }
 
     // Locate krt.c / stdlib_extra.c / krt.h relative to kodas binary.
-    char krt_dir[1024], krt_c[1024], extra_c[1024], krt_hdir[1024], src_dir[1024];
+    char krt_dir[1024], krt_c[1024], extra_c[1024], http_c[1024], krt_hdir[1024], src_dir[1024];
     const char* ed = fs_exe_dir();
     snprintf(krt_dir, sizeof(krt_dir), "%s/../src/codegen", ed && ed[0] ? ed : ".");
     snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
     snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
+    snprintf(http_c, sizeof(http_c), "%s/stdlib_http.c", krt_dir);
     FILE* fk = fopen(krt_c, "r");
     if (!fk) {
         snprintf(krt_dir, sizeof(krt_dir), "src/codegen");
         snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
         snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
+        snprintf(http_c, sizeof(http_c), "%s/stdlib_http.c", krt_dir);
         fk = fopen(krt_c, "r");
     }
     if (fk) fclose(fk);
     snprintf(krt_hdir, sizeof(krt_hdir), "%s", krt_dir);
     snprintf(src_dir, sizeof(src_dir), "%s/..", krt_dir);
-    // Check if stdlib_extra.c exists (it may not in stripped distributions).
     FILE* fx = fopen(extra_c, "r"); bool has_extra = fx != NULL; if (fx) fclose(fx);
+    FILE* fh = fopen(http_c,  "r"); bool has_http  = fh != NULL; if (fh) fclose(fh);
 
     printf("  [2/3] Compiling %s -> %s (using %s)\n", c_path, out_path, cc_path);
-    char cmd[8192];
-    const char* extra_q = has_extra ? "\"" : "";
+    char cmd[16384];
     if (strcmp(cc_path, "cl") == 0) {
-        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /DKRT_MAIN /I \"%s\" /I \"%s\" \"%s\" %s%s%s \"%s\" /Fe%s",
+        snprintf(cmd, sizeof(cmd), "cl /nologo /O2 /DKRT_MAIN /I \"%s\" /I \"%s\" \"%s\" %s%s%s %s%s%s \"%s\" /Fe%s",
                  src_dir, krt_hdir, krt_c,
-                 extra_q, has_extra?extra_c:"", extra_q,
+                 has_extra?"\"":"", has_extra?extra_c:"", has_extra?"\"":"",
+                 has_http?"\"":"",  has_http?http_c:"",   has_http?"\"":"",
                  c_path, out_path);
     } else {
-        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -pthread -I \"%s\" -I \"%s\" \"%s\" %s%s%s \"%s\" -o \"%s\" -lm",
+        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -pthread -I \"%s\" -I \"%s\" \"%s\" %s%s%s %s%s%s \"%s\" -o \"%s\" -lm",
                  cc_path, src_dir, krt_hdir, krt_c,
-                 extra_q, has_extra?extra_c:"", extra_q,
+                 has_extra?"\"":"", has_extra?extra_c:"", has_extra?"\"":"",
+                 has_http?"\"":"",  has_http?http_c:"",   has_http?"\"":"",
                  c_path, out_path);
     }
     int rc = system(cmd);
