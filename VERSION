@@ -1,0 +1,8 @@
+Kodas v0.1.0 - Sprint 14 (full codebase bundle)
+Built: 2026-11-06
+Compiler binary: seed/kodas (Linux x86_64, stripped)
+Baseline tests: 32/32 PASS
+Included: compiler source (seed/src), stdlib (stdlib/), docs, examples, tests,
+  future stdlib sketches (stdlib/*), self-hosted compiler draft (self/compiler/),
+  tooling (tools/), VS Code extension (vscode-extension/), website, kargo,
+  SAFETY_PERFORMANCE_RULES.md
