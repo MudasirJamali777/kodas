@@ -19,6 +19,9 @@ Kodas is a new programming language designed for developer joy: no null pointers
 - **Built-in tests**: `test "name" { assert ... }`
 - **Built-in math**: `PI`, `sqrt`, `sin`, `cos`, `pow`, `abs`
 - **I/O**: `show`, `print`, `input`, `read_file`, `write_file`
+- **HTTP client & server**: `http.get`, `http.post`, `http.listen`, `http.response`
+- **Imports**: `import "path"` (physical files, recursive, deduped)
+- **Automatic Semicolon Insertion**: newlines end statements (JS/Python style)
 - **CLI**: `kodas run`, `kodas check`, `kodas repl`, `kodas tokens`, `kodas ast`
 
 ## Quick Start

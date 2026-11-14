@@ -1,0 +1,46 @@
+-- trait_dynamic_test.kds - Dynamic dispatch via boxed trait objects (dyn)
+
+trait Show {
+  fn greet(self) -> String
+  fn shout(self) {
+    show self.greet()
+  }
+}
+
+struct User { name: String }
+impl Show for User {
+  fn greet(self) -> String { give "Hi, " + self.name }
+}
+
+struct Dog { name: String }
+impl Show for Dog {
+  fn greet(self) -> String { give "Woof, " + self.name }
+}
+
+-- Direct method call (static dispatch)
+let u = User { name: "Alice" }
+let g = u.greet()
+assert(g == "Hi, Alice")
+u.shout()
+
+-- Dynamic dispatch with dyn(trait, value): boxed trait objects
+let bu = dyn("Show", User { name: "Bob" })
+let bd = dyn("Show", Dog { name: "Rex" })
+assert(bu.greet() == "Hi, Bob")
+assert(bd.greet() == "Woof, Rex")
+
+-- Default method called through trait object
+bu.shout()
+bd.shout()
+
+-- Heterogeneous collection via trait objects
+let zoo = [bu, bd]
+assert(zoo.len() == 2)
+assert(zoo[0].greet() == "Hi, Bob")
+assert(zoo[1].greet() == "Woof, Rex")
+
+show "  [ok] boxed trait object dyn(trait,value)"
+show "  [ok] static dispatch on concrete types"
+show "  [ok] default trait methods via vtable"
+show "  [ok] heterogeneous list of trait objects"
+show "=== trait dynamic dispatch tests passed ==="
