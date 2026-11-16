@@ -1,12 +1,14 @@
 /// main.c - Kodas CLI entry point
+#ifndef _WIN32
 #define _GNU_SOURCE
 #define _POSIX_C_SOURCE 200809L
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <unistd.h>
 #include <limits.h>
+#include "platform/kodas_platform.h"
 #include "lexer.h"
 #include "parser.h"
 #include "eval.h"
@@ -87,7 +89,7 @@ static void print_usage(const char* argv0) {
     printf("  %s help                  Show this help\n", argv0);
 }
 
-static int cmd_run(const char* file) {
+static int cmd_run_interp(const char* file) {
     char* source = read_file(file);
     if (!source) return 1;
 
@@ -121,6 +123,13 @@ static int cmd_run(const char* file) {
     lexer_free(&lex);
     free(source);
     return exit_code;
+}
+
+static int cmd_build(const char* file);
+static int cmd_run(const char* file) {
+    // KRT backend: compile to C, build with system CC, run the produced binary.
+    // Falls back to the AST interpreter if KRT codegen or C compilation fails.
+    return cmd_build(file);
 }
 
 static int cmd_tokens(const char* file) {
@@ -404,7 +413,7 @@ static int cmd_build(const char* file) {
     program_free(&prog); lexer_free(&lex); free(source);
     if (!ok) {
         fprintf(stderr, "  ✗ code generation failed; falling back to interpreter\n");
-        return cmd_run(file);
+        return cmd_run_interp(file);
     }
 
     char cc_path[256] = {0};
@@ -421,27 +430,47 @@ static int cmd_build(const char* file) {
 #endif
     if (cc_path[0] == 0) {
         fprintf(stderr, "  ✗ no C compiler found (gcc/clang/cc/cl required) — falling back to interpreter\n");
-        return cmd_run(file);
+        return cmd_run_interp(file);
     }
 
     // Locate krt.c / stdlib_extra.c / krt.h relative to kodas binary.
     char krt_dir[1024], krt_c[1024], extra_c[1024], http_c[1024], krt_hdir[1024], src_dir[1024];
     const char* ed = fs_exe_dir();
-    snprintf(krt_dir, sizeof(krt_dir), "%s/../src/codegen", ed && ed[0] ? ed : ".");
-    snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+    FILE* fk = NULL;
+    // Search paths for the C runtime sources (krt.c + friends). Tried in order:
+    //   1. <exe>/../src/codegen   (source-tree build)
+    //   2. <exe>/../lib/kodas     (installed release layout)
+    //   3. $HOME/.kodas/lib       (user-local install)
+    //   4. src/codegen            (cwd fallback)
+    const char* candidates[] = {
+        "%s/../src/codegen",
+        "%s/../lib/kodas",
+        NULL,
+        NULL,
+        "src/codegen",
+        NULL
+    };
+    char home_path[1100];
+    const char* home = getenv("HOME");
+    if (home) { candidates[2] = "%s/.kodas/lib"; snprintf(home_path, sizeof(home_path), "%s/.kodas/lib", home); }
+    const char* paths[6]; int pi = 0;
+    char ab[1024];
+    if (ed && ed[0]) { snprintf(ab, sizeof(ab), candidates[0], ed); paths[pi++] = ab; }
+    if (ed && ed[0]) { char ab2[1024]; snprintf(ab2, sizeof(ab2), candidates[1], ed); paths[pi++] = ab2; }
+    if (home) paths[pi++] = home_path;
+    paths[pi++] = "src/codegen";
+    paths[pi] = NULL;
+    for (int i = 0; paths[i]; i++) {
+        snprintf(krt_dir, sizeof(krt_dir), "%s", paths[i]);
+        snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
+        fk = fopen(krt_c, "r");
+        if (fk) break;
+    }
+    if (fk) { fclose(fk); } else { krt_dir[0] = 0; }
     snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
     snprintf(http_c, sizeof(http_c), "%s/stdlib_http.c", krt_dir);
-    FILE* fk = fopen(krt_c, "r");
-    if (!fk) {
-        snprintf(krt_dir, sizeof(krt_dir), "src/codegen");
-        snprintf(krt_c, sizeof(krt_c), "%s/krt.c", krt_dir);
-        snprintf(extra_c, sizeof(extra_c), "%s/stdlib_extra.c", krt_dir);
-        snprintf(http_c, sizeof(http_c), "%s/stdlib_http.c", krt_dir);
-        fk = fopen(krt_c, "r");
-    }
-    if (fk) fclose(fk);
     snprintf(krt_hdir, sizeof(krt_hdir), "%s", krt_dir);
-    snprintf(src_dir, sizeof(src_dir), "%s/..", krt_dir);
+    snprintf(src_dir, sizeof(src_dir), "%s", krt_dir);
     FILE* fx = fopen(extra_c, "r"); bool has_extra = fx != NULL; if (fx) fclose(fx);
     FILE* fh = fopen(http_c,  "r"); bool has_http  = fh != NULL; if (fh) fclose(fh);
 
@@ -454,7 +483,9 @@ static int cmd_build(const char* file) {
                  has_http?"\"":"",  has_http?http_c:"",   has_http?"\"":"",
                  c_path, out_path);
     } else {
-        snprintf(cmd, sizeof(cmd), "%s -O2 -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -pthread -I \"%s\" -I \"%s\" \"%s\" %s%s%s %s%s%s \"%s\" -o \"%s\" -lm",
+        // -O3 + -flto for maximum speed on release builds. -fno-plt shaves a
+        // call overhead per extern call. Frame pointer is kept for debuggability.
+        snprintf(cmd, sizeof(cmd), "%s -O3 -flto -std=c11 -D_POSIX_C_SOURCE=200809L -DKRT_MAIN -pthread -fno-plt -I \"%s\" -I \"%s\" \"%s\" %s%s%s %s%s%s \"%s\" -o \"%s\" -lm",
                  cc_path, src_dir, krt_hdir, krt_c,
                  has_extra?"\"":"", has_extra?extra_c:"", has_extra?"\"":"",
                  has_http?"\"":"",  has_http?http_c:"",   has_http?"\"":"",

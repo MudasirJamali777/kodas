@@ -13,6 +13,7 @@
 #include <setjmp.h>
 #include <math.h>
 #include <ctype.h>
+#include "../platform/kodas_platform.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +27,8 @@ typedef enum {
     K_STRUCT, K_ENUM, K_MAYBE, K_RESULT,
     K_TYPE,        // type-as-value (for static methods like Point.new)
     K_RANGE,       // inclusive/exclusive numeric range
-    K_MUT_REF
+    K_MUT_REF,
+    K_DYNAMIC      // boxed trait object: (value, vtable) for dynamic dispatch
 } KKind;
 
 struct KVal;
@@ -37,12 +39,21 @@ typedef KVal* (*KClosureFn)(KVal** env, int argc, KVal** argv);
 typedef struct KList { int count; int cap; KVal** items; } KList;
 typedef struct KMapEntry { KVal* key; KVal* val; struct KMapEntry* next; } KMapEntry;
 typedef struct KMap { int count; int cap; KMapEntry** buckets; } KMap;
-typedef struct KStruct { const char* name; int field_count; const char** field_names; KVal** fields; } KStruct;
+
+// VTable entry: maps a method name to a function pointer (arity includes self).
+typedef struct KVTableEntry { const char* name; KClosureFn fn; int arity; } KVTableEntry;
+typedef struct KVTable { const char* trait_name; int method_count; KVTableEntry* methods; } KVTable;
+
+typedef struct KStruct {
+    const char* name; int field_count; const char** field_names; KVal** fields;
+    KVTable** vtables; int vtable_count;
+} KStruct;
 typedef struct KEnum { const char* variant; int payload_count; KVal** payload; } KEnum;
 typedef struct KClosure { KClosureFn fn; int env_count; KVal** env; int arity; const char* name; } KClosure_;
 typedef struct KNative { KNativeFn fn; const char* name; } KNative_;
 typedef struct KMutRef { KVal* inner; } KMutRef;
 typedef struct KRange { int64_t start, end; bool inclusive; } KRange;
+typedef struct KDynamic { const char* trait_name; KVal* inner; KVTable* vtable; } KDynamic;
 
 struct KVal {
     KKind kind;
@@ -65,6 +76,7 @@ struct KVal {
         KVal* wrapped;      // K_MAYBE / K_RESULT inner value
         KRange* range;
         KMutRef* mutref;
+        KDynamic* dynamic_v;
     } as;
 };
 
@@ -76,7 +88,7 @@ struct KFrame {
     KFrame* prev;
 };
 
-extern __thread KFrame* k_current_frame;
+extern KODAS_THREAD_LOCAL KFrame* k_current_frame;
 
 // Throw an error; longjmps to nearest k_catch.
 void k_throw(KVal* err);
@@ -119,13 +131,29 @@ KVal* k_closure(KClosureFn fn, int env_count, KVal** env, int arity, const char*
 KVal* k_native(KNativeFn fn, const char* name);
 KVal* k_mutref(KVal* inner);
 
+// ── Dynamic trait objects (vtable dispatch) ───────────────────────────
+typedef struct KVTable KVTable;
+void   k_trait_register_impl(const char* trait_name, const char* type_name, const char* method, KClosureFn fn, int arity);
+KVTable* k_vtable_get_or_create(const char* tr, const char* ty);
+void   k_vtable_add(KVTable* vt, const char* name, KClosureFn fn, int arity);
+KVal*  k_dynamic_new(const char* trait_name, KVal* inner);
+
 // ── Reference counting ─────────────────────────────────────────────────
 KVal* k_retain(KVal* v);
 void  k_release(KVal* v);
 void  k_release_many(int count, ...);
 
 // ── Operations ─────────────────────────────────────────────────────────
+// Arity-specialized fast calls (avoid building argv array in generated code;
+// krt.c provides implementations that dispatch directly by kind/arity).
+KVal* k_call0(KVal* fn);
+KVal* k_call1(KVal* fn, KVal* a);
+KVal* k_call2(KVal* fn, KVal* a, KVal* b);
+KVal* k_call3(KVal* fn, KVal* a, KVal* b, KVal* c);
 KVal* k_call(KVal* fn, int argc, KVal** argv);
+KVal* k_method0(KVal* obj, const char* name);
+KVal* k_method1(KVal* obj, const char* name, KVal* a);
+KVal* k_method2(KVal* obj, const char* name, KVal* a, KVal* b);
 KVal* k_method(KVal* obj, const char* name, int argc, KVal** argv);
 KVal* k_get_field(KVal* obj, const char* name);
 void  k_set_field(KVal* obj, const char* name, KVal* val);

@@ -684,7 +684,8 @@ static Expr* parse_primary(Parser* p) {
                     }
                 } else if (is_at(p, TOK_IDENT)) {
                     Token* name_t = advance_tok(p);
-                    // Could be enum variant: Variant(...) or binding
+                    // Uppercase-starting identifier is always an enum variant pattern (Unit variant like Nothing).
+                    // Lowercase is a binding.
                     pat->name = kodas_strndup(name_t->start, name_t->length);
                     if (is_at(p, TOK_LPAREN)) {
                         pat->kind = PAT_ENUM_VARIANT;

@@ -579,6 +579,10 @@ void lexer_tokenize(Lexer* lex) {
                 lex->tokens[lex->count++] = semi;
             }
         }
+        if (lex->count >= lex->capacity) {
+            lex->capacity = lex->capacity == 0 ? 64 : lex->capacity * 2;
+            lex->tokens = (Token*)kodas_realloc(lex->tokens, lex->capacity * sizeof(Token));
+        }
         lex->tokens[lex->count++] = t;
         if (t.kind == TOK_EOF || t.kind == TOK_ERROR) break;
     }

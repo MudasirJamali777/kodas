@@ -1,0 +1,3 @@
+D:/Kodas/build/win-x64-release/CMakeFiles/kodas.dir
+D:/Kodas/build/win-x64-release/CMakeFiles/edit_cache.dir
+D:/Kodas/build/win-x64-release/CMakeFiles/rebuild_cache.dir

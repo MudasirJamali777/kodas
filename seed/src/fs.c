@@ -1,19 +1,10 @@
 /// fs.c - File system helpers
 #include "fs.h"
+#include "platform/kodas_platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/stat.h>
-#ifdef _WIN32
-#include <windows.h>
-#define PATH_SEP '\\'
-#else
-#include <unistd.h>
-#include <libgen.h>
-#include <dirent.h>
-#define PATH_SEP '/'
-#endif
 
 char* fs_read_file(const char* path) {
     FILE* f = fopen(path, "rb");
@@ -94,10 +85,28 @@ const char* fs_stdlib_root(void) {
         for (char* p = root; *p; p++) if (*p == '\\') *p = '/';
         return root;
     }
-    // <exe_dir>/../stdlib
+    char probe[1024];
+    // <exe_dir>/../stdlib            (source tree)
     if (exe_dir[0]) {
         snprintf(root, sizeof(root), "%s/../stdlib", exe_dir);
-        if (fs_file_exists(fs_path_join((char*)&(char[1024]){0}, 1024, root, "core/math.kds"))) return root;
+        snprintf(probe, sizeof(probe), "%s/core/math.kds", root);
+        if (fs_file_exists(probe)) return root;
+    }
+    // <exe_dir>/../lib/kodas/stdlib  (installed release layout)
+    if (exe_dir[0]) {
+        snprintf(root, sizeof(root), "%s/../lib/kodas/stdlib", exe_dir);
+        snprintf(probe, sizeof(probe), "%s/core/math.kds", root);
+        if (fs_file_exists(probe)) return root;
+    }
+    // $HOME/.kodas/stdlib (or %USERPROFILE%\.kodas\stdlib on Windows)
+    const char* home = getenv("HOME");
+#ifdef _WIN32
+    if (!home) home = getenv("USERPROFILE");
+#endif
+    if (home) {
+        snprintf(root, sizeof(root), "%s/.kodas/stdlib", home);
+        snprintf(probe, sizeof(probe), "%s/core/math.kds", root);
+        if (fs_file_exists(probe)) return root;
     }
     // ./stdlib (cwd)
     if (fs_file_exists("stdlib/core/math.kds")) { snprintf(root, sizeof(root), "stdlib"); return root; }

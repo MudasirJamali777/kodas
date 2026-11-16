@@ -1,0 +1,9 @@
+# ninja log v7
+20	227	8136846250974970	CMakeFiles/kodas.dir/seed/src/main.c.obj	9d5874b8b523460
+4	245	8136846250814944	CMakeFiles/kodas.dir/seed/src/ast.c.obj	ce42d4687814dc65
+9	250	8136846250864967	CMakeFiles/kodas.dir/seed/src/environment.c.obj	366852eca6e55d33
+28	327	8136846251064972	CMakeFiles/kodas.dir/seed/src/value.c.obj	44affd60aee8ddfd
+16	375	8136846250934970	CMakeFiles/kodas.dir/seed/src/lexer.c.obj	43d18bbd71be79cc
+24	535	8136846251024965	CMakeFiles/kodas.dir/seed/src/parser.c.obj	f15e6da3dd91c763
+12	559	8136846250894965	CMakeFiles/kodas.dir/seed/src/eval.c.obj	35daa880715859fb
+559	691	8136846256370800	D:/Kodas/seed/kodas.exe	1bc7ca39504006e2

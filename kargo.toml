@@ -1,0 +1,22 @@
+# kargo.toml — KODAS package manifest (v0.17)
+# Kargo is the KODAS package manager (coming online in v0.18; the manifest is
+# already supported by `kodas build` and `kodas run` for dependency metadata).
+[package]
+name = "hello"
+version = "0.1.0"
+edition = "2025"
+author = ""
+description = "A KODAS project."
+
+[dependencies]
+# Add third-party packages here:
+# json = "1.0"
+# http = "0.5"
+
+[build]
+# Entry point
+main = "src/main.kds"
+# Output binary name (defaults to package name)
+out = "hello"
+# Optimization level: 0 = debug, 1 = release (default)
+opt = 1

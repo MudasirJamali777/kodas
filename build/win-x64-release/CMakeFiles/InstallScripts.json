@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"D:/Kodas/build/win-x64-release/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

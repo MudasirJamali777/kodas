@@ -1,20 +1,29 @@
 // Extra stdlib modules: fs, json, thread/chan.
 // Compiled into the generated binary alongside krt.c.
-#include "codegen/krt.h"
+#include "krt.h"
+#include "../platform/kodas_platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <errno.h>
-#include <threads.h>
 #include <time.h>
+#include <sys/stat.h>
+#if KODAS_PLATFORM_POSIX
+#include <dirent.h>
+#endif
+#if KODAS_HAS_THREADS
+#include <threads.h>
+#endif
 
 // k_module/k_mod_set/k_alloc/k_str_len/k_index_set declared in krt.h.
+// Windows shims for POSIX types
+#ifndef _WIN32
+#include <unistd.h>
+#else
+#include <direct.h>
+#include <io.h>
+#endif
 
 // ── fs module ────────────────────────────────────────────────────────
 static KVal* b_fs_read(int argc, KVal** argv) {
@@ -65,15 +74,28 @@ static KVal* b_fs_mkdir(int argc, KVal** argv) {
 }
 static KVal* b_fs_read_dir(int argc, KVal** argv) {
     if (argc < 1 || argv[0]->kind != K_STRING) k_throw(k_err(k_str("fs.read_dir(path)")));
-    DIR* d = opendir(argv[0]->as.string_v);
-    if (!d) k_throw(k_err(k_str("fs.read_dir: open failed")));
     KVal* out = k_list_empty();
+#if KODAS_PLATFORM_POSIX
+    DIR* d = opendir(argv[0]->as.string_v);
+    if (!d) { k_release(out); k_throw(k_err(k_str("fs.read_dir: open failed"))); return out; }
     struct dirent* de;
     while ((de = readdir(d))) {
         if (strcmp(de->d_name,".")==0 || strcmp(de->d_name,"..")==0) continue;
         k_list_push(out, k_str(de->d_name));
     }
     closedir(d);
+#elif defined(_WIN32)
+    WIN32_FIND_DATAA fd;
+    char pattern[2048];
+    snprintf(pattern, sizeof(pattern), "%s\\*", argv[0]->as.string_v);
+    HANDLE h = FindFirstFileA(pattern, &fd);
+    if (h == INVALID_HANDLE_VALUE) { k_release(out); k_throw(k_err(k_str("fs.read_dir: open failed"))); return out; }
+    do {
+        if (strcmp(fd.cFileName,".")==0 || strcmp(fd.cFileName,"..")==0) continue;
+        k_list_push(out, k_str(fd.cFileName));
+    } while (FindNextFileA(h, &fd));
+    FindClose(h);
+#endif
     return out;
 }
 
@@ -242,6 +264,7 @@ static KVal* b_json_stringify(int argc, KVal** argv) {
 }
 
 // ── Channels (bounded FIFO) and threads ─────────────────────────────
+#if KODAS_HAS_THREADS
 #define MAX_CHANS 256
 typedef struct Chan {
     KVal** buf; int cap; int head; int tail; int count; int closed;
@@ -328,6 +351,8 @@ static KVal* b_sleep(int argc, KVal** argv) {
 }
 
 // ── Registration ────────────────────────────────────────────────────
+#endif // KODAS_HAS_THREADS (thread/chan function definitions block)
+
 static KNative_* mk_native(KNativeFn fn, const char* nm) {
     KNative_* n = (KNative_*)k_alloc(sizeof(KNative_));
     n->fn = fn; n->name = nm;
@@ -354,6 +379,7 @@ void k_register_stdlib_extra(void) {
         k_mod_set(m,"stringify",mk_nv(b_json_stringify,"json.stringify"));
         k_global_set("json", m); k_release(m);
     }
+#if KODAS_HAS_THREADS
     {
         KVal* cm = k_module("chan");
         k_mod_set(cm,"new",mk_nv(b_chan_new,"chan.new"));
@@ -370,4 +396,5 @@ void k_register_stdlib_extra(void) {
         k_global_set("spawn", mk_nv(b_spawn,"spawn"));
         k_global_set("sleep", mk_nv(b_sleep,"sleep"));
     }
+#endif // KODAS_HAS_THREADS
 }

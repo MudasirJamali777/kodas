@@ -1,155 +1,137 @@
-# 🚀 KODAS
+# KODAS v0.17 · Where Logic Knows No Bounds
 
-> "Code should read like poetry, execute like lightning, and debug like a conversation."
+KODAS is a programming language that compiles to C and produces standalone
+native binaries. Designed by Mudasir Ali, built solo, in public.
 
-Kodas is a new programming language designed for developer joy: no null pointers, no try/catch hell, no async complexity, no boilerplate. Built for correctness, expressiveness, and speed.
+- **Compiles to C** — every program becomes a portable .c file that your system
+  C compiler (gcc/clang/cl) optimizes into a native binary.
+- **Optional types.** Annotations help you; you don't serve them. Duck-typed at
+  runtime when you leave them out.
+- **`struct`, `enum`, `trait`, `impl`, `dyn`, closures, pattern matching,
+  `Result/Maybe`, channels, HTTP, JSON** — the battery pack you actually use.
+- **Two mascots**: Morty the dog (compiler/native side), Kun the cloud
+  (website/online side).
 
-## Features (Seed v0.1.0)
-
-- **Variables & Constants**: `let`, `let mut`, `seal`
-- **First-class functions**: `fn name(...) { ... }` and arrow `fn(x) => x * 2`
-- **String interpolation**: `"Hello, {name}!"`
-- **If/else expressions** + ternary `if cond then a else b`
-- **Loops**: `loop N`, `loop x in col`, `loop while cond`, infinite `loop`
-- **Lists** with `.map`, `.filter`, `.reduce`, `.push`, `.len`, `.join`
-- **Ranges**: `1..10`
-- **Match expressions** with literals, wildcards, ranges
-- **Structs**: `struct Point { x: Float, y: Float }` and field access
-- **Error values**: `ok(x)`, `err(msg)`, `give err("...")`
-- **Built-in tests**: `test "name" { assert ... }`
-- **Built-in math**: `PI`, `sqrt`, `sin`, `cos`, `pow`, `abs`
-- **I/O**: `show`, `print`, `input`, `read_file`, `write_file`
-- **HTTP client & server**: `http.get`, `http.post`, `http.listen`, `http.response`
-- **Imports**: `import "path"` (physical files, recursive, deduped)
-- **Automatic Semicolon Insertion**: newlines end statements (JS/Python style)
-- **CLI**: `kodas run`, `kodas check`, `kodas repl`, `kodas tokens`, `kodas ast`
-
-## Quick Start
+## Install
 
 ```bash
-cd seed
-make
-./kodas run ../tests/hello.kds
+# Linux / macOS (WSL works on Windows)
+curl -fsSL https://kodas.xo.je/install | sh
+
+# Windows: download kodas-windows-x86_64.zip, extract, double-click install.bat
 ```
 
-### Hello, World
-```kodas
-let name = "World"
-show "Hello, {name}!"
-```
-
-### Factorial
-```kodas
-fn factorial(n) {
-    if n <= 1 { give 1 }
-    give n * factorial(n - 1)
-}
-show factorial(10)   -- 3628800
-```
-
-### Lists and Pipelines
-```kodas
-let numbers = [1, 2, 3, 4, 5, 6]
-let evens = numbers.filter(fn(n) => n % 2 == 0)
-let doubled = evens.map(fn(n) => n * 2)
-show doubled   -- [2, 4, 6, 8, 10, 12]
-```
-
-### Structs
-```kodas
-struct Point { x: Float, y: Float }
-let p = Point { x: 3.0, y: 4.0 }
-show "({p.x}, {p.y})"
-```
-
-### Tests
-```kodas
-test "addition works" {
-    assert 2 + 2 == 4
-}
-```
-
-## Building
+## Try it
 
 ```bash
-cd seed
-make             # builds kodas binary
-make test        # runs test suite
+echo 'fn fib(n){if n<2{give n} give fib(n-1)+fib(n-2)}
+show fib(35)' > fib.kds
+kodas run fib.kds      # compiles to C, builds, runs
+kodas build fib.kds    # produces standalone native binary ./fib
 ```
 
-**Requirements**: GCC or Clang with C11 support, `make`.
+## The language in 60 seconds
 
-## CLI Commands
+```kds
+trait Greet { fn hello(self) -> String }
 
-```
-kodas run <file.kds>        Run a Kodas program
-kodas check <file.kds>      Parse and check a file
-kodas repl                  Start interactive REPL
-kodas tokens <file.kds>     Show tokens (debug)
-kodas ast <file.kds>        Show AST info (debug)
-kodas version               Show version
-kodas help                  Show help
-```
+struct User { name: String, age: int }
 
-## Project Structure
+impl Greet for User {
+    fn hello(self) -> String { give "Hi, I'm " + self.name }
+}
 
-```
-kodas/
-├── seed/           # Seed compiler (C, tree-walking interpreter)
-│   └── src/        #   Source: lexer, parser, AST, values, env, eval, main
-├── tests/          # Test programs (.kds)
-├── self/           # Future self-hosting compiler (written in Kodas)
-├── stdlib/         # Standard library (Kodas)
-├── kargo/          # Package manager
-├── tools/          # Tooling (formatter, lsp, repl, linter)
-├── ide/            # KodasForge IDE
-├── docs/           # Documentation
-├── website/        # Website
-├── vscode-extension/ # VS Code extension
-├── ROADMAP.md      # Detailed roadmap
-├── CHANGELOG.md    # Version history
-├── LICENSE         # GPL-3.0
-└── README.md       # This file
+fn greet(name = "World") {
+    let alice = User { name: name, age: 30 }
+    show alice.hello()
+    show dyn("Greet", alice).hello()
+}
+
+greet()
+greet("Alice")
+[1,2,3].map(fn(x) { x * 2 }).filter(fn(x) { x > 2 })
 ```
 
-## Upcoming Features (see ROADMAP.md)
+Keywords: `let`, `let mut`, `fn`, `struct`, `enum`, `trait`, `impl`, `match`,
+`give`, `if`, `while`, `for`, `loop`, `show`, `assert`, `spawn`, `dyn`.
 
-- `|>` and `|?>` (normal & error pipes)
-- `behave` blocks for methods
-- `trait` definitions
-- `enum` with variants
-- Generics `[T]`
-- `maybe T` option types
-- `flow` / `together` concurrency with channels
-- `import` / `module` system
-- Semantic analysis / type checking
-- LLVM native code generation
-- WebAssembly backend
-- Self-hosting compiler
-- Standard library (web, db, crypto, gui, ...)
-- Kargo package manager
-- KodasForge IDE (Tauri + web frontend)
-- And much more...
+`give` means return. `show` prints. `mut` makes a binding mutable.
 
-## Philosophy
+## Speed (v0.17, recursive `fib(35)`, single run, real time)
 
-Kodas aims to eliminate the common pain points developers face every day:
+|           | C -O2 | Node.js | **KODAS** | Python 3 |
+|-----------|-------|---------|-----------|----------|
+| fib(35)   | 0.01s | 0.07s   | **0.76s** | 0.81s    |
 
-- **Null pointer exceptions** → `maybe T` + `empty` (no null!)
-- **Try/catch hell** → `|?>` error pipe for happy-path chaining
-- **Async complexity** → `flow` + `together`
-- **Boilerplate** → Auto-derived behaviors from structs
-- **"Works on my machine"** → Built-in contracts
-- **Dependency hell** → Built-in polyglot bridge
+KODAS v0.17 is ~17× faster than v0.16 (12.8s → 0.76s) thanks to arity-
+specialized fast calls, an open-addressing global hash table, and a small-integer
+cache that eliminates malloc/free on the hot path. Binary size: ~220 KB, zero
+external dependencies, deterministic reference counting (no GC pauses).
+
+Tight integer loop 1..10M: **0.30s** (KODAS v0.17).
+
+## Layout of this repository (for Visual Studio / GitHub)
+
+```
+.
+├── src/
+│   ├── main.c              # compiler entry point (kodas run/build/ast/lex)
+│   ├── lexer.c/.h          # tokenizer
+│   ├── parser.c/.h         # recursive-descent parser → AST
+│   ├── ast.c/.h            # AST node types
+│   ├── eval.c/.h           # tree-walking interpreter fallback
+│   ├── value.c/.h          # interpreter-level value types
+│   ├── environment.c/.h    # lexical scopes
+│   ├── fs.c/.h             # file I/O helpers
+│   ├── common.h            # shared macros / allocators
+│   ├── platform/           # platform abstraction (kodas_platform.h)
+│   └── codegen/
+│       ├── codegen_krt.c   # KRT backend: Kodas → C transpiler (full language)
+│       ├── codegen_c.c     # C backend: subset → fast unboxed C (numeric kernels)
+│       ├── krt.c/.h        # Runtime library linked into every built binary
+│       ├── stdlib_extra.c  # Extra natives (JSON, fs, string/list helpers)
+│       ├── stdlib_http.c   # HTTP client + server natives
+│       └── codegen_llvm.c  # (placeholder for future LLVM backend)
+├── stdlib/                 # Standard library modules (core, web, io, ...)
+├── tools/                  # Tooling: lsp, formatter, linter, repl, docgen
+├── ide/                    # VS Code extension metadata (syntaxes, snippets)
+├── kargo/                  # Kargo package manager (WIP)
+├── website/                # Landing page (Kun side)
+├── release/                # Release binaries + installers (for kodas.xo.je)
+├── Makefile                # `make` → builds ./kodas; `make dev` for debug build
+└── kargo.toml              # Package manifest (like Cargo.toml)
+```
+
+## Building from source
+
+```bash
+make            # builds optimized ./kodas (~220 KB)
+make dev        # debug build (O0 + debug symbols)
+make test       # smoke test
+```
+
+Requires `gcc` or `clang` on Linux/macOS, or MSVC/MinGW on Windows. The compiler
+invokes your system C compiler automatically for `kodas run` / `kodas build`.
+
+## v0.17 changelog (Sprint 17: Speed)
+
+- **17× faster hot path** via arity-specialized `k_call0/1/2/3` and
+  `k_method0/1/2` — no more building argv arrays on every call.
+- **Open-addressing global hash table** replaces linear-scan global lookup —
+  global function calls are O(1) now, not O(n).
+- **Small-integer cache** (-128..4096) immortalizes common ints — they never hit
+  malloc/free. null/true/false are immortal singletons.
+- **Compiler flags**: `kodas run/build` now invokes gcc with `-O3 -flto -fno-plt`.
+- Compiler itself builds with `-O3 -flto` and strips to 220 KB.
+- Recursive `fib(35)`: 12.8s → **0.76s** (faster than Python 3).
+- Tight loops 1..10M: 1.2s → **0.30s**.
+
+## Mascots
+
+- **Morty** 🐕 — compiler, backend, native binaries. Loyal, a little slow on
+  the first lap but faster every sprint.
+- **Kun** ☁️ — website, docs, online playground. Always online.
 
 ## License
 
-GPL-3.0 - see [LICENSE](LICENSE).
-
-## Author
-
-Mudasir Jamali ([@MudasirJamali777](https://github.com/MudasirJamali777))
-
----
-
-*Make code feel like magic.*
+Released by Mudasir Ali. Use it, fork it, ship it.

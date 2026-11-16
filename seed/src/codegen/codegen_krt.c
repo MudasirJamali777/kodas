@@ -10,7 +10,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
-#include <alloca.h>
+#include "../platform/kodas_platform.h"
 
 // ── Name generation (large rotating buffers so no alias) ──────────────
 #define NB 512
@@ -29,15 +29,22 @@ static char* mangle(const char* n) {
     }
     b[j] = 0; return b;
 }
+static int _loc_i = 0;
 static char* mangle_local(const char* n) {
     char* b = m_bufs[m_i & (NB-1)]; m_i++;
-    int j = 0; b[j++] = 'L'; b[j++] = '_';
+    int j = snprintf(b, 256, "L%d_", _loc_i++);
     for (const char* p = n; *p && j < 250; p++) {
         unsigned char c = (unsigned char)*p;
         if (isalnum(c) || c == '_') b[j++] = (char)c; else b[j++] = '_';
     }
     b[j] = 0; return b;
 }
+static void cg_reset_tmps(void){t_i=0;a_i=0;m_i=0;_loc_i=0;}
+static int _sf_i=0;
+static int _la_i=0;
+static const char* behave_type_name(Stmt*s){return (s->kind==STMT_IMPL)?s->as.impl_s.type_name:s->as.behave_s.type_name;}
+static const char* behave_trait_name(Stmt*s){return (s->kind==STMT_IMPL)?s->as.impl_s.trait_name:NULL;}
+static FnDeclList* behave_methods(Stmt*s){return (s->kind==STMT_IMPL)?&s->as.impl_s.methods:&s->as.behave_s.methods;}
 
 // ── CG state ──────────────────────────────────────────────────────────
 typedef struct CG CG;
@@ -55,6 +62,19 @@ struct CG {
     Program* prog; Scope* scope;
     int lambda_count; int lambda_count_final; Lambda lambdas[MAX_LAMBDAS];
 };
+
+static int is_enum_variant_name(CG*g,const char*nm,int*out_payload){
+    if(out_payload)*out_payload=0;
+    for(Stmt*s=g->prog->first;s;s=s->next) if(s->kind==STMT_ENUM){
+        for(int vi=0;vi<s->as.enum_s.variants.count;vi++){
+            if(strcmp(s->as.enum_s.variants.items[vi].name,nm)==0){
+                if(out_payload)*out_payload=s->as.enum_s.variants.items[vi].fields.count;
+                return 1;
+            }
+        }
+    }
+    return 0;
+}
 
 static void cg_i(CG* g){for(int i=0;i<g->indent;i++)fputc(' ',g->out);}
 static void cg_p(CG* g, const char* fmt, ...){
@@ -174,8 +194,19 @@ static void cg_expr(CG*g,Expr*e,const char*T){
         case EXPR_CHAR:cg_p(g,"%s=k_char('%c');",T,e->as.char_val);return;
         case EXPR_EMPTY:cg_p(g,"%s=k_empty();",T);return;
         case EXPR_IDENT:{const char*loc=scope_lookup(g,e->as.str_val);
-            if(loc)cg_p(g,"%s=k_retain(%s);",T,loc);
-            else{cg_i(g);cg_raw(g,"%s=k_retain(k_global_get(\"%s\"));\n",T,e->as.str_val);}return;}
+            if(loc){cg_p(g,"%s=k_retain(%s);",T,loc);}
+            else{
+                // Check if this is a zero-arg enum variant constructor -> call it directly.
+                bool is_unit_ev=false;
+                for(Stmt*s2=g->prog->first;s2;s2=s2->next) if(s2->kind==STMT_ENUM){
+                    for(int vi=0;vi<s2->as.enum_s.variants.count;vi++){
+                        if(strcmp(s2->as.enum_s.variants.items[vi].name,e->as.str_val)==0 && s2->as.enum_s.variants.items[vi].fields.count==0){is_unit_ev=true;break;}
+                    }
+                    if(is_unit_ev)break;
+                }
+                if(is_unit_ev){char fnn[128];snprintf(fnn,sizeof(fnn),"k_ev_%s",mangle(e->as.str_val));cg_p(g,"%s=%s(0,NULL);",T,fnn);}
+                else{cg_i(g);cg_raw(g,"%s=k_retain(k_global_get(\"%s\"));\n",T,e->as.str_val);}
+            }return;}
         case EXPR_SELF:{const char*s=scope_lookup(g,"self");cg_p(g,"%s=k_retain(%s);",T,s?s:"_self");return;}
         case EXPR_BINARY: {
             const char* op = e->as.binary.op;
@@ -202,16 +233,39 @@ static void cg_expr(CG*g,Expr*e,const char*T){
             else{cg_err(g,"unary %s",op);cg_p(g,"%s=k_null();",T);}
             rel(g,a);return;}
         case EXPR_CALL:{char*callee=etmp(g,e->as.call.callee);int n=e->as.call.args.count;char**av=(char**)alloca(sizeof(char*)*n);
-            for(int i=0;i<n;i++)av[i]=etmp(g,e->as.call.args.items[i]);char*arr=new_a();
-            cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*%d);",arr,n);
-            for(int i=0;i<n;i++)cg_p(g,"%s[%d]=%s;",arr,i,av[i]);
-            cg_p(g,"%s=k_call(%s,%d,%s);",T,callee,n,arr);
+            for(int i=0;i<n;i++)av[i]=etmp(g,e->as.call.args.items[i]);
+            const char* fn;
+            switch(n){
+                case 0: fn="k_call0"; break;
+                case 1: fn="k_call1"; break;
+                case 2: fn="k_call2"; break;
+                case 3: fn="k_call3"; break;
+                default: fn=NULL; break;
+            }
+            if(fn && n<=3){
+                cg_p(g,"%s=%s(%s",T,fn,callee);
+                for(int i=0;i<n;i++)cg_raw(g,",%s",av[i]);
+                cg_raw(g,");\n");
+            } else {
+                char*arr=new_a();
+                cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*%d);",arr,n);
+                for(int i=0;i<n;i++)cg_p(g,"%s[%d]=%s;",arr,i,av[i]);
+                cg_p(g,"%s=k_call(%s,%d,%s);",T,callee,n,arr);
+            }
             for(int i=0;i<n;i++)rel(g,av[i]);rel(g,callee);return;}
         case EXPR_METHOD_CALL:{char*obj=etmp(g,e->as.method_call.object);int n=e->as.method_call.args.count;char**av=(char**)alloca(sizeof(char*)*n);
-            for(int i=0;i<n;i++)av[i]=etmp(g,e->as.method_call.args.items[i]);char*arr=new_a();
-            cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*%d);",arr,n);
-            for(int i=0;i<n;i++)cg_p(g,"%s[%d]=%s;",arr,i,av[i]);
-            cg_i(g);cg_raw(g,"%s=k_method(%s,",T,obj);cg_string_lit(g,e->as.method_call.method,g->out);cg_raw(g,",%d,%s);\n",n,arr);
+            for(int i=0;i<n;i++)av[i]=etmp(g,e->as.method_call.args.items[i]);
+            if(n<=2){
+                const char* mf = n==0?"k_method0":n==1?"k_method1":"k_method2";
+                cg_i(g);cg_raw(g,"%s=%s(%s,",T,mf,obj);cg_string_lit(g,e->as.method_call.method,g->out);
+                for(int i=0;i<n;i++)cg_raw(g,",%s",av[i]);
+                cg_raw(g,");\n");
+            } else {
+                char*arr=new_a();
+                cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*%d);",arr,n);
+                for(int i=0;i<n;i++)cg_p(g,"%s[%d]=%s;",arr,i,av[i]);
+                cg_i(g);cg_raw(g,"%s=k_method(%s,",T,obj);cg_string_lit(g,e->as.method_call.method,g->out);cg_raw(g,",%d,%s);\n",n,arr);
+            }
             for(int i=0;i<n;i++)rel(g,av[i]);rel(g,obj);return;}
         case EXPR_FIELD:{char*o=etmp(g,e->as.field.object);cg_i(g);cg_raw(g,"%s=k_get_field(%s,",T,o);cg_string_lit(g,e->as.field.field,g->out);cg_raw(g,");\n");rel(g,o);return;}
         case EXPR_INDEX:{char*c=etmp(g,e->as.index.collection);char*k=etmp(g,e->as.index.index);cg_p(g,"%s=k_index(%s,%s);",T,c,k);rel(g,c);rel(g,k);return;}
@@ -252,8 +306,8 @@ static void cg_expr(CG*g,Expr*e,const char*T){
             rel(g,rhs);return;}
         case EXPR_FIELD_ASSIGN:{char*o=etmp(g,e->as.field_assign.object);char*v=etmp(g,e->as.field_assign.value);cg_i(g);cg_raw(g,"k_set_field(%s,",o);cg_string_lit(g,e->as.field_assign.field,g->out);cg_raw(g,",%s);\n",v);cg_p(g,"%s=k_retain(%s);",T,v);rel(g,o);rel(g,v);return;}
         case EXPR_STRUCT_INIT:{int n=e->as.struct_init.field_count;char**av=(char**)alloca(sizeof(char*)*n);for(int i=0;i<n;i++)av[i]=etmp(g,e->as.struct_init.field_vals[i]);
-            cg_p(g,"static const char*_sfns[]={");g->indent+=2;for(int i=0;i<n;i++){cg_i(g);cg_string_lit(g,e->as.struct_init.field_names[i],g->out);cg_raw(g,",\n");}g->indent-=2;cg_p(g,"};");
-            cg_i(g);cg_raw(g,"%s=k_struct_new(\"%s\",%d,(const char**)_sfns",T,mangle(e->as.struct_init.name),n);for(int i=0;i<n;i++)cg_raw(g,",%s",av[i]);cg_raw(g,");\n");
+            int _sfid = _sf_i++; cg_p(g,"static const char*_sfns%d[]={",_sfid);g->indent+=2;for(int i=0;i<n;i++){cg_i(g);cg_string_lit(g,e->as.struct_init.field_names[i],g->out);cg_raw(g,",\n");}g->indent-=2;cg_p(g,"};");
+            cg_i(g);fprintf(g->out,"%s=k_struct_new(\"%s\",%d,(const char**)_sfns%d",T,mangle(e->as.struct_init.name),n,_sfid);for(int i=0;i<n;i++)cg_raw(g,",%s",av[i]);cg_raw(g,");\n");
             for(int i=0;i<n;i++)rel(g,av[i]);return;}
         case EXPR_LET:{const char*nm=e->as.let.name;const char*c=mangle_local(nm);cg_p(g,"KVal* %s=k_null();",c);scope_add(g,nm,c);
             if(e->as.let.value){char*v=etmp(g,e->as.let.value);cg_p(g,"{KVal*_ov=%s;%s=k_retain(%s);k_release(_ov);}",c,c,v);rel(g,v);}
@@ -270,7 +324,7 @@ static void cg_expr(CG*g,Expr*e,const char*T){
             int _li = g->lambda_count; g->lambda_count++;
             const char* caps[32]; int ncap=0;
             collect_free(g, e->as.fn_e.body, caps, &ncap, 32);
-            char*earr=new_a();
+            char _earr_n[32];snprintf(_earr_n,sizeof(_earr_n),"_earr%d",_la_i++);const char*earr=_earr_n;
             cg_p(g,"KVal** %s=(KVal**)alloca(sizeof(KVal*)*%d);",earr,ncap);
             for(int ci=0;ci<ncap;ci++){
                 const char*cv=scope_lookup(g,caps[ci]);
@@ -278,7 +332,7 @@ static void cg_expr(CG*g,Expr*e,const char*T){
                 cg_p(g,"%s[%d]=k_retain(%s);",earr,ci,cv);
             }
             char*lname=new_t(); t_i++;
-            cg_p(g,"KVal* %s=k_closure(fn___lambda_%d,%d,%s,%d,\"__lambda_%d\");",lname,_li,ncap,earr,e->as.fn_e.params.count,_li);
+            cg_p(g,"KVal* %s=k_closure(fn___lambda_%d,%d,%s,%d,\"__lambda_%d\");",lname,_li,ncap,ncap>0?earr:"NULL",e->as.fn_e.params.count,_li);
             for(int ci=0;ci<ncap;ci++){cg_p(g,"k_release(%s[%d]);",earr,ci);}
             cg_p(g,"%s=k_retain(%s);",T,lname);rel(g,lname);
             g->lambdas[_li].body=e->as.fn_e.body;
@@ -343,12 +397,19 @@ static void cg_expr(CG*g,Expr*e,const char*T){
                 Pattern*pat=e->as.match_e.arms[ai].pat;Expr*body=e->as.match_e.arms[ai].body;
                 cg_p(g,"if(!%s){",done);g->indent+=2;
                 bool opens_block=true;
+                scope_push(g);  // isolate pattern bindings per arm
                 if(pat->kind==PAT_WILDCARD){cg_p(g,"{");opens_block=true;}
                 else if(pat->kind==PAT_BINDING){
-                    const char*v=pat->name;const char*cv=mangle_local(v);
-                    cg_p(g,"{KVal* %s=k_retain(%s);",cv,mv);opens_block=true;
-                    // Register in scope for the body but pop after (emitted via separate block)
-                    scope_add(g,v,cv);
+                    const char*v=pat->name;
+                    int pc=0;
+                    if(v&&v[0]&&isupper((unsigned char)v[0])&&is_enum_variant_name(g,v,&pc)&&pc==0){
+                        cg_p(g,"if(%s->kind==K_ENUM&&strcmp(%s->as.enum_v->variant,\"%s\")==0){",mv,mv,v);g->indent+=2;
+                        opens_block=true;
+                    } else {
+                        const char*cv=mangle_local(v);
+                        cg_p(g,"{KVal* %s=k_retain(%s);",cv,mv);opens_block=true;
+                        scope_add(g,v,cv);
+                    }
                 }
                 else if(pat->kind==PAT_LITERAL){char*lv=etmp(g,pat->literal);
                     cg_p(g,"if(k_eq_deep(%s,%s)){",mv,lv);g->indent+=2;rel(g,lv);opens_block=true;}
@@ -370,6 +431,7 @@ static void cg_expr(CG*g,Expr*e,const char*T){
                 cg_p(g,"%s=1;",done);rel(g,bv);}
                 if(pat->guard){g->indent-=2;cg_p(g,"}");}
                 if(opens_block){g->indent-=2;cg_p(g,"}");}
+                scope_pop(g);
                 g->indent-=2;cg_p(g,"}");
             }
             cg_p(g,"%s=k_retain(%s);",T,result);
@@ -438,7 +500,14 @@ static void emit_fn_body_caps(CG*g,ParamList*params,Expr*body,int ncap,const cha
     int n=params->count;
     for(int i=0;i<n;i++){Param*p=&params->items[i];bool isself=p->is_self||(i==0&&strcmp(p->name,"self")==0);
         const char*c=mangle_local(p->name);cg_p(g,"KVal* %s=k_null();",c);scope_add(g,p->name,c);
-        cg_p(g,"{KVal*_pv=(_argc>%d)?k_retain(_argv[%d]):k_null();",i,i);cg_p(g,"KVal*_ov=%s;%s=k_retain(_pv);k_release(_ov);k_release(_pv);}",c,c);
+        char*dv=NULL;
+        if(p->default_value && !isself){dv=etmp(g,p->default_value);}
+        cg_p(g,"{KVal*_pv=(_argc>%d)?k_retain(_argv[%d]):NULL;",i,i);
+        if(dv){
+            cg_p(g,"if(!_pv){KVal*_ov=%s;%s=k_retain(%s);k_release(_ov);k_release(%s);}else{KVal*_ov=%s;%s=k_retain(_pv);k_release(_ov);k_release(_pv);}}",c,c,dv,dv,c,c);
+        } else {
+            cg_p(g,"if(!_pv)_pv=k_null();KVal*_ov=%s;%s=k_retain(_pv);k_release(_ov);k_release(_pv);}",c,c);
+        }
         if(isself)cg_p(g,"KVal* _self=%s;",c);}
     if(body){char*v=etmp(g,body);cg_p(g,"return %s;",v);}else cg_p(g,"return k_null();");
     // Release captured vars
@@ -482,7 +551,16 @@ static void emit_fn_def(CG*g,const char*fn_c,ParamList*params,Expr*body){
     cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",fn_c);g->indent+=2;emit_fn_body(g,params,body);g->indent-=2;cg_p(g,"}");
 }
 
-static void cg_preamble(CG*g){cg_p(g,"// Auto-generated by Kodas (KRT backend) — DO NOT EDIT");cg_p(g,"#include\"krt.h\"");cg_p(g,"#include<alloca.h>");cg_p(g,"");}
+static void cg_preamble(CG*g){
+    cg_p(g,"// Auto-generated by Kodas (KRT backend) — DO NOT EDIT");
+    cg_p(g,"#include\"krt.h\"");
+    cg_p(g,"#ifdef _WIN32");
+    cg_p(g,"#include <malloc.h> /* for alloca */");
+    cg_p(g,"#else");
+    cg_p(g,"#include <alloca.h>");
+    cg_p(g,"#endif");
+    cg_p(g,"");
+}
 static void cg_entry(CG*g){
     cg_p(g,"KVal* k_entry(int _kargc,KVal**_kargv){");g->indent+=2;cg_p(g,"(void)_kargc;(void)_kargv;");
     for(Stmt*s=g->prog->first;s;s=s->next){
@@ -493,7 +571,7 @@ static void cg_entry(CG*g){
             cg_p(g,"k_global_set(\"%s\",k_type(\"%s\"));",s->as.enum_s.name,s->as.enum_s.name);
         }
         else if(s->kind==STMT_FN){const char*fn=mangle(s->as.fn_s.name);cg_p(g,"k_global_set(\"%s\",k_closure(fn_%s,0,NULL,%d,\"%s\"));",s->as.fn_s.name,fn,s->as.fn_s.params.count,s->as.fn_s.name);}
-        else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){FnDeclList*mt=&s->as.behave_s.methods;for(int i=0;i<mt->count;i++){FnDecl*m=&mt->items[i];char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.behave_s.type_name),mangle(m->name));
+        else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){FnDeclList*mt=behave_methods(s);const char*_bhn=behave_type_name(s);for(int i=0;i<mt->count;i++){FnDecl*m=&mt->items[i];char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(_bhn),mangle(m->name));
             bool is_static=true;for(int p=0;p<m->params.count;p++)if(m->params.items[p].is_self){is_static=false;break;}
             cg_p(g,"k_global_set(\"%s\",k_closure(fn_%s,0,NULL,%d,\"%s\"));",mn,mn,m->params.count-(is_static?0:1),mn);}}
     }
@@ -507,7 +585,28 @@ static void cg_entry(CG*g){
             cg_p(g,"k_global_set(\"%s\",k_native(%s,\"%s\"));",v->name,fnn,v->name);
         }
     }}
-    // Emit test blocks (each runs after main in k_entry)
+    // Register trait impl vtables BEFORE any user code runs.
+    for(Stmt*s=g->prog->first;s;s=s->next){
+        if(s->kind==STMT_IMPL){
+            const char* tr=s->as.impl_s.trait_name; const char* ty=s->as.impl_s.type_name;
+            for(Stmt*tr2=g->prog->first;tr2;tr2=tr2->next){
+                if(tr2->kind==STMT_TRAIT&&strcmp(tr2->as.trait_s.name,tr)==0){
+                    for(int i=0;i<tr2->as.trait_s.method_count;i++){
+                        TraitMethod*m=&tr2->as.trait_s.methods[i];
+                        if(!m->default_body)continue;
+                        char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(tr),mangle(m->name));
+                        cg_p(g,"k_trait_register_impl(\"%s\",\"%s\",\"%s\",(KClosureFn)fn_%s,%d);",tr,ty,m->name,mn,m->params.count+1);
+                    }
+                }
+            }
+            for(int i=0;i<s->as.impl_s.methods.count;i++){
+                FnDecl*m=&s->as.impl_s.methods.items[i];
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(ty),mangle(m->name));
+                cg_p(g,"k_trait_register_impl(\"%s\",\"%s\",\"%s\",(KClosureFn)fn_%s,%d);",tr,ty,m->name,mn,m->params.count+1);
+            }
+        }
+    }
+    // Emit test blocks
     for(Stmt*s=g->prog->first;s;s=s->next){if(s->kind==STMT_TEST){
         const char*nm=s->as.test_s.name?:"<test>";
         cg_i(g); fprintf(g->out,"fprintf(stderr,\"test %%s: \",");
@@ -515,9 +614,11 @@ static void cg_entry(CG*g){
         if(s->as.test_s.body){char*v=etmp(g,s->as.test_s.body);cg_p(g,"k_release(%s);",v);}
         cg_p(g,"fprintf(stderr,\"ok\\n\");");
     }}
+    scope_push(g);
     for(Stmt*s=g->prog->first;s;s=s->next){switch(s->kind){
         case STMT_FN:case STMT_STRUCT:case STMT_ENUM:case STMT_BEHAVE:case STMT_TRAIT:case STMT_IMPL:case STMT_TEST:case STMT_BENCH:case STMT_BRIDGE:case STMT_CONTRACT:case STMT_MODULE:case STMT_IMPORT:case STMT_DECORATOR:case STMT_PUB:continue;
         default:cg_stmt(g,s);break;}}
+    scope_pop(g);
     cg_p(g,"KVal* _main_fn=k_global_get(\"main\");");cg_p(g,"if(_main_fn){");g->indent+=2;
     cg_p(g,"KVal*_r=k_call(_main_fn,0,NULL);if(_r)k_release(_r);");g->indent-=2;cg_p(g,"}");cg_p(g,"return k_null();");g->indent-=2;cg_p(g,"}");
 }
@@ -525,38 +626,89 @@ static void cg_entry(CG*g){
 int codegen_krt(Program*prog,const char*out_path,const char*source_path){
     (void)source_path;FILE*f=fopen(out_path,"w");if(!f){fprintf(stderr,"failed to open %s\n",out_path);return 0;}
     CG g_;memset(&g_,0,sizeof(g_));CG*g=&g_;g->out=f;g->prog=prog;
-    // First pass: count lambdas (run codegen into /dev/null to discover lambda_count).
+    // First pass: count lambdas into /dev/null.
     FILE*nul=fopen("/dev/null","w");g->out=nul;g->lambda_count=0;
-    // Emit fn decls + bodies just to count lambdas, but don't produce final output.
-    cg_preamble(g);
-    for(Stmt*s=prog->first;s;s=s->next){t_i=0;a_i=0;
+    cg_preamble(g); cg_reset_tmps();_sf_i=0;_la_i=0;
+    for(Stmt*s=prog->first;s;s=s->next){
         if(s->kind==STMT_FN){emit_fn_def(g,mangle(s->as.fn_s.name),&s->as.fn_s.params,s->as.fn_s.body);cg_p(g,"");}
+        else if(s->kind==STMT_TRAIT){
+            for(int i=0;i<s->as.trait_s.method_count;i++){
+                TraitMethod*m=&s->as.trait_s.methods[i];if(!m->default_body)continue;
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.trait_s.name),mangle(m->name));
+                cg_reset_tmps();_sf_i=0;_la_i=0;
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;
+                emit_fn_body(g,&m->params,m->default_body);
+                g->indent-=2;cg_p(g,"}");cg_p(g,"");
+            }
+        }
         else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){
-            FnDeclList*mt=&s->as.behave_s.methods;for(int i=0;i<mt->count;i++){char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.behave_s.type_name),mangle(mt->items[i].name));
-            cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;emit_fn_body(g,&mt->items[i].params,mt->items[i].body);g->indent-=2;cg_p(g,"}");cg_p(g,"");}}}
+            FnDeclList*mt=behave_methods(s);const char*tn=behave_type_name(s);
+            for(int i=0;i<mt->count;i++){
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(tn),mangle(mt->items[i].name));
+                cg_reset_tmps();_sf_i=0;_la_i=0;
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;
+                emit_fn_body(g,&mt->items[i].params,mt->items[i].body);
+                g->indent-=2;cg_p(g,"}");cg_p(g,"");
+            }
+        }
+    }
+    cg_reset_tmps();_sf_i=0;_la_i=0;
+    cg_entry(g);
     int nlambdas=g->lambda_count;
     fclose(nul);g->indent=0;
 
     // Second pass: real output.
     g->out=f;g->lambda_count=0;g->scope=NULL;
-    cg_preamble(g);
-    for(Stmt*s=prog->first;s;s=s->next){if(s->kind==STMT_FN)cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv);",mangle(s->as.fn_s.name));
-        else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){FnDeclList*mt=&s->as.behave_s.methods;for(int i=0;i<mt->count;i++){char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.behave_s.type_name),mangle(mt->items[i].name));cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv);",mn);}}}
+    cg_preamble(g); cg_reset_tmps();
+    for(Stmt*s=prog->first;s;s=s->next){
+        if(s->kind==STMT_FN)cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv);",mangle(s->as.fn_s.name));
+        else if(s->kind==STMT_TRAIT){
+            for(int i=0;i<s->as.trait_s.method_count;i++){
+                TraitMethod*m=&s->as.trait_s.methods[i];if(!m->default_body)continue;
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.trait_s.name),mangle(m->name));
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv);",mn);
+            }
+        }
+        else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){
+            FnDeclList*mt=behave_methods(s);const char*tn=behave_type_name(s);
+            for(int i=0;i<mt->count;i++){
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(tn),mangle(mt->items[i].name));
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv);",mn);
+            }
+        }
+        else if(s->kind==STMT_ENUM){
+            for(int vi=0;vi<s->as.enum_s.variants.count;vi++){
+                char fnn[128];snprintf(fnn,sizeof(fnn),"k_ev_%s",mangle(s->as.enum_s.variants.items[vi].name));
+                cg_p(g,"static KVal* %s(int _ac,KVal**_av);",fnn);
+            }
+        }
+    }
     for(int i=0;i<nlambdas;i++)cg_p(g,"static KVal* fn___lambda_%d(KVal**_env,int _argc,KVal**_argv);",i);
     cg_p(g,"");
-    for(Stmt*s=prog->first;s;s=s->next){t_i=0;a_i=0;if(s->kind==STMT_FN){emit_fn_def(g,mangle(s->as.fn_s.name),&s->as.fn_s.params,s->as.fn_s.body);cg_p(g,"");}
+    for(Stmt*s=prog->first;s;s=s->next){
+        if(s->kind==STMT_FN){emit_fn_def(g,mangle(s->as.fn_s.name),&s->as.fn_s.params,s->as.fn_s.body);cg_p(g,"");}
+        else if(s->kind==STMT_TRAIT){
+            for(int i=0;i<s->as.trait_s.method_count;i++){
+                TraitMethod*m=&s->as.trait_s.methods[i];if(!m->default_body)continue;
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.trait_s.name),mangle(m->name));
+                cg_reset_tmps();_sf_i=0;_la_i=0;
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;
+                emit_fn_body(g,&m->params,m->default_body);
+                g->indent-=2;cg_p(g,"}");cg_p(g,"");
+            }
+        }
         else if(s->kind==STMT_BEHAVE||s->kind==STMT_IMPL){
-            FnDeclList*mt=&s->as.behave_s.methods;for(int i=0;i<mt->count;i++){char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(s->as.behave_s.type_name),mangle(mt->items[i].name));
-            cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;emit_fn_body(g,&mt->items[i].params,mt->items[i].body);g->indent-=2;cg_p(g,"}");cg_p(g,"");}}}
-    // Emit lambda bodies (empty bodies by default — placeholder until proper capture lifting)
-    for(int i=0;i<g->lambda_count;i++){
-        char nm[64];snprintf(nm,sizeof(nm),"__lambda_%d",i);
-        cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",nm);g->indent+=2;
-        emit_fn_body_caps(g,&g->lambdas[i].params,g->lambdas[i].body,g->lambdas[i].capture_count,g->lambdas[i].captures);
-        g->indent-=2;cg_p(g,"}");cg_p(g,"");
+            FnDeclList*mt=behave_methods(s);const char*tn=behave_type_name(s);
+            for(int i=0;i<mt->count;i++){
+                char mn[256];snprintf(mn,sizeof(mn),"%s_%s",mangle(tn),mangle(mt->items[i].name));
+                cg_reset_tmps();_sf_i=0;_la_i=0;
+                cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",mn);g->indent+=2;
+                emit_fn_body(g,&mt->items[i].params,mt->items[i].body);
+                g->indent-=2;cg_p(g,"}");cg_p(g,"");
+            }
+        }
     }
-    g->lambda_count_final=g->lambda_count;
-    // Emit enum variant constructor functions (top-level native C functions)
+    // Enum variant constructors
     for(Stmt*s=prog->first;s;s=s->next){if(s->kind==STMT_ENUM){
         for(int vi=0;vi<s->as.enum_s.variants.count;vi++){
             EnumVariant*v=&s->as.enum_s.variants.items[vi];
@@ -568,6 +720,17 @@ int codegen_krt(Program*prog,const char*out_path,const char*source_path){
             fprintf(g->out,");return _r;}\n");
         }
     }}
-    t_i=0;a_i=0;cg_entry(g);fclose(f);
+    cg_reset_tmps();_sf_i=0;_la_i=0;
+    cg_entry(g);
+    cg_p(g,"");
+    for(int i=0;i<g->lambda_count;i++){
+        char nm[64];snprintf(nm,sizeof(nm),"__lambda_%d",i);
+        cg_reset_tmps();_sf_i=0;_la_i=0;
+        cg_p(g,"static KVal* fn_%s(KVal**_env,int _argc,KVal**_argv){",nm);g->indent+=2;
+        emit_fn_body_caps(g,&g->lambdas[i].params,g->lambdas[i].body,g->lambdas[i].capture_count,g->lambdas[i].captures);
+        g->indent-=2;cg_p(g,"}");cg_p(g,"");
+    }
+    g->lambda_count_final=g->lambda_count;
+    fclose(f);
     if(g->had_error){fprintf(stderr,"krt codegen error: %s\n",g->error_msg);return 0;}return 1;
 }

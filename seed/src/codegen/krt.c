@@ -1,14 +1,14 @@
 /// krt.c - Kodas Runtime implementation
-#include "codegen/krt.h"
+#include "krt.h"
+#include "../platform/kodas_platform.h"
 #include <assert.h>
-#include <alloca.h>
 #include <time.h>
 
 // Forward declarations
 static KVal* k_str_concat3(const char* a, const char* b, const char* c);
 KVal* k_errf(const char* fmt, ...);
 
-__thread KFrame* k_current_frame = NULL;
+KODAS_THREAD_LOCAL KFrame* k_current_frame = NULL;
 
 // ── Panic / error handling ─────────────────────────────────────────────
 void k_throw(KVal* err) {
@@ -53,9 +53,42 @@ KVal* k_new(KKind kind) {
     return v;
 }
 
-KVal* k_null(void)   { return k_new(K_NULL); }
-KVal* k_bool(bool b) { KVal* v = k_new(K_BOOL); v->as.bool_v = b; return v; }
-KVal* k_int(int64_t i) { KVal* v = k_new(K_INT); v->as.int_v = i; return v; }
+// ── Immortal singletons & small-int cache ──────────────────────────
+// null/true/false are singletons (never freed). Small integers in the range
+// [INT_CACHE_LO, INT_CACHE_HI] are pre-allocated at startup so that hot-path
+// code (fib, counters, loop indices) never hits malloc/free. Every k_retain/
+// k_release on them is a no-op because refcount is pinned to UINT32_MAX.
+#define INT_CACHE_LO (-128)
+#define INT_CACHE_HI 4096
+#define INT_CACHE_SZ ((INT_CACHE_HI - INT_CACHE_LO) + 1)
+static KVal* s_null;
+static KVal* s_true;
+static KVal* s_false;
+static KVal* s_int_cache[INT_CACHE_SZ];
+static bool s_cache_inited = false;
+static void k_init_cache(void) {
+    if (s_cache_inited) return;
+    s_cache_inited = true;
+    s_null = k_new(K_NULL); s_null->refcount = UINT32_MAX;
+    s_true = k_new(K_BOOL); s_true->as.bool_v = true;  s_true->refcount = UINT32_MAX;
+    s_false = k_new(K_BOOL); s_false->as.bool_v = false; s_false->refcount = UINT32_MAX;
+    for (int i = 0; i < INT_CACHE_SZ; i++) {
+        KVal* v = k_new(K_INT);
+        v->as.int_v = (int64_t)(i + INT_CACHE_LO);
+        v->refcount = UINT32_MAX;   // immortal
+        s_int_cache[i] = v;
+    }
+}
+KVal* k_null(void)   { if (!s_cache_inited) k_init_cache(); return s_null; }
+KVal* k_bool(bool b) { if (!s_cache_inited) k_init_cache(); return b ? s_true : s_false; }
+KVal* k_int(int64_t i) {
+    if (!s_cache_inited) k_init_cache();
+    if (i >= INT_CACHE_LO && i <= INT_CACHE_HI) {
+        KVal* v = s_int_cache[(int)(i - INT_CACHE_LO)];
+        return v; // immortal; retain/release are no-ops
+    }
+    KVal* v = k_new(K_INT); v->as.int_v = i; return v;
+}
 KVal* k_float(double d){ KVal* v = k_new(K_FLOAT); v->as.float_v = d; return v; }
 KVal* k_str(const char* s) { return k_str_len(s, (int)strlen(s)); }
 
@@ -93,6 +126,7 @@ const char* k_type_name(KVal* v) {
         case K_MUT_REF: return "mut";
         case K_TYPE: return v->as.type_v;
         case K_RANGE: return "range";
+        case K_DYNAMIC: return v->as.dynamic_v->trait_name;
         default: return "?";
     }
 }
@@ -236,6 +270,21 @@ static bool k_equals(KVal* a, KVal* b) {
         case K_CHAR: return a->as.char_v == b->as.char_v;
         case K_LIST: return k_list_equals(a->as.list, b->as.list);
         case K_TUPLE: return k_list_equals(a->as.tuple, b->as.tuple);
+        case K_ENUM:
+            if (strcmp(a->as.enum_v->variant, b->as.enum_v->variant) != 0) return false;
+            if (a->as.enum_v->payload_count != b->as.enum_v->payload_count) return false;
+            for (int i=0;i<a->as.enum_v->payload_count;i++) if(!k_equals(a->as.enum_v->payload[i],b->as.enum_v->payload[i]))return false;
+            return true;
+        case K_STRUCT:
+            if (strcmp(a->as.struct_v->name, b->as.struct_v->name) != 0) return false;
+            if (a->as.struct_v->field_count != b->as.struct_v->field_count) return false;
+            for(int i=0;i<a->as.struct_v->field_count;i++){
+                if(strcmp(a->as.struct_v->field_names[i],b->as.struct_v->field_names[i])!=0)return false;
+                if(!k_equals(a->as.struct_v->fields[i],b->as.struct_v->fields[i]))return false;
+            }
+            return true;
+        case K_DYNAMIC:
+            return a->as.dynamic_v->inner == b->as.dynamic_v->inner;
         case K_MAYBE:
         case K_RESULT:
             if (a->is_error != b->is_error) return false;
@@ -299,6 +348,71 @@ static KVal* k_map_get(KVal* map, KVal* key) {
     return k_retain(e->val);
 }
 
+// ── Global vtable registry: maps "TraitName:TypeName" -> KVTable*. ─────
+typedef struct VTabReg { const char* key; KVTable* vt; struct VTabReg* next; } VTabReg;
+static VTabReg* g_vtables = NULL;
+
+static char* vt_key(const char* tr, const char* ty) {
+    size_t tl=strlen(tr), yl=strlen(ty);
+    char* k=(char*)malloc(tl+1+yl+1); memcpy(k,tr,tl); k[tl]=':'; memcpy(k+tl+1,ty,yl+1); return k;
+}
+static KVTable* vt_lookup(const char* tr, const char* ty) {
+    char* k = vt_key(tr,ty);
+    for(VTabReg* r=g_vtables;r;r=r->next) if(strcmp(r->key,k)==0){free(k);return r->vt;}
+    free(k); return NULL;
+}
+KVTable* k_vtable_get_or_create(const char* tr, const char* ty) {
+    KVTable* vt = vt_lookup(tr,ty);
+    if(vt) return vt;
+    vt=(KVTable*)k_alloc(sizeof(KVTable));
+    vt->trait_name=k_strdup(tr);
+    vt->method_count=0; vt->methods=NULL;
+    char* k=vt_key(tr,ty);
+    VTabReg* r=(VTabReg*)malloc(sizeof(VTabReg));
+    r->key=k; r->vt=vt; r->next=g_vtables; g_vtables=r;
+    return vt;
+}
+void k_vtable_add(KVTable* vt, const char* name, KClosureFn fn, int arity) {
+    for(int i=0;i<vt->method_count;i++){
+        if(strcmp(vt->methods[i].name,name)==0){vt->methods[i].fn=fn;vt->methods[i].arity=arity;return;}
+    }
+    vt->methods=(KVTableEntry*)realloc(vt->methods,sizeof(KVTableEntry)*(vt->method_count+1));
+    vt->methods[vt->method_count].name=k_strdup(name);
+    vt->methods[vt->method_count].fn=fn;
+    vt->methods[vt->method_count].arity=arity;
+    vt->method_count++;
+}
+void k_trait_register_impl(const char* trait_name, const char* type_name, const char* method, KClosureFn fn, int arity) {
+    KVTable* vt = k_vtable_get_or_create(trait_name, type_name);
+    k_vtable_add(vt, method, fn, arity);
+}
+
+KVal* k_dynamic_new(const char* trait_name, KVal* inner) {
+    KVTable* vt = NULL;
+    const char* type_name = NULL;
+    if(inner->kind == K_STRUCT) type_name = inner->as.struct_v->name;
+    if(type_name) vt = vt_lookup(trait_name, type_name);
+    if(!vt) k_throw(k_errf("type '%s' does not implement trait '%s'", type_name?type_name:k_type_name(inner), trait_name));
+    KVal* v = k_new(K_DYNAMIC);
+    KDynamic* d = (KDynamic*)k_alloc(sizeof(KDynamic));
+    d->trait_name = k_strdup(trait_name);
+    d->inner = k_retain(inner);
+    d->vtable = vt;
+    v->as.dynamic_v = d;
+    return v;
+}
+static KVal* k_dynamic_method(KDynamic* d, const char* name, int argc, KVal** argv) {
+    for(int i=0;i<d->vtable->method_count;i++){
+        if(strcmp(d->vtable->methods[i].name,name)==0){
+            int targc=argc+1; KVal** targv=(KVal**)alloca(sizeof(KVal*)*targc);
+            targv[0]=d->inner; for(int j=0;j<argc;j++)targv[j+1]=argv[j];
+            return d->vtable->methods[i].fn(NULL,targc,targv);
+        }
+    }
+    k_throw(k_errf("trait '%s' has no method '%s'", d->trait_name, name));
+    return k_null();
+}
+
 KVal* k_struct_new(const char* name, int field_count, const char** names, ...) {
     KVal* v = k_new(K_STRUCT);
     KStruct* s = (KStruct*)k_alloc(sizeof(KStruct));
@@ -306,6 +420,18 @@ KVal* k_struct_new(const char* name, int field_count, const char** names, ...) {
     s->field_count = field_count;
     s->field_names = (const char**)k_alloc(sizeof(char*)*field_count);
     s->fields = (KVal**)k_alloc(sizeof(KVal*)*field_count);
+    s->vtables = NULL; s->vtable_count = 0;
+    {
+        int cap = 4;
+        s->vtables = (KVTable**)k_alloc(sizeof(KVTable*)*cap);
+        for(VTabReg* r=g_vtables;r;r=r->next){
+            const char* colon = strchr(r->key,':');
+            if(colon && strcmp(colon+1,name)==0){
+                if(s->vtable_count==cap){cap*=2;s->vtables=(KVTable**)realloc(s->vtables,sizeof(KVTable*)*cap);}
+                s->vtables[s->vtable_count++] = r->vt;
+            }
+        }
+    }
     va_list ap; va_start(ap, names);
     for (int i = 0; i < field_count; i++) {
         s->field_names[i] = k_strdup(names[i]);
@@ -364,7 +490,10 @@ KVal* k_mutref(KVal* inner) {
 }
 
 // ── Reference counting ─────────────────────────────────────────────────
-KVal* k_retain(KVal* v) { if (v) v->refcount++; return v; }
+// Immortal values (null/true/false/small-ints) have refcount pinned to UINT32_MAX,
+// so retain/release are no-ops for them. This is a huge win because k_int(n) for
+// n in [-128, 4096] returns a shared cached pointer and never hits free().
+KVal* k_retain(KVal* v) { if (v && v->refcount != UINT32_MAX) v->refcount++; return v; }
 
 static void k_free_deep(KVal* v) {
     if (!v) return;
@@ -438,6 +567,13 @@ static void k_free_deep(KVal* v) {
         case K_MUT_REF:
             if (v->as.mutref) { k_release(v->as.mutref->inner); free(v->as.mutref); }
             break;
+        case K_DYNAMIC:
+            if(v->as.dynamic_v){
+                if(v->as.dynamic_v->inner) k_release(v->as.dynamic_v->inner);
+                free((void*)v->as.dynamic_v->trait_name);
+                free(v->as.dynamic_v);
+            }
+            break;
         default: break;
     }
     free(v);
@@ -445,6 +581,7 @@ static void k_free_deep(KVal* v) {
 
 void k_release(KVal* v) {
     if (!v) return;
+    if (v->refcount == UINT32_MAX) return; // immortal
     if (--v->refcount == 0) k_free_deep(v);
 }
 
@@ -519,6 +656,13 @@ KVal* k_add_str(KVal* a, KVal* b) {
         v->as.string_v = buf;
         return v;
     }
+    // List concatenation
+    if (a->kind == K_LIST && b->kind == K_LIST) {
+        KVal* out = k_list_empty();
+        for(int i=0;i<a->as.list->count;i++)k_list_push(out,a->as.list->items[i]);
+        for(int i=0;i<b->as.list->count;i++)k_list_push(out,b->as.list->items[i]);
+        return out;
+    }
     // Numeric add
     if (a->kind == K_INT && b->kind == K_INT) return k_int(a->as.int_v + b->as.int_v);
     if ((a->kind == K_INT || a->kind == K_FLOAT) && (b->kind == K_INT || b->kind == K_FLOAT)) {
@@ -551,6 +695,31 @@ KVal* k_and(KVal* a, KVal* b){ return k_bool(k_truthy(a) && k_truthy(b)); }
 KVal* k_or(KVal* a, KVal* b) { return k_bool(k_truthy(a) || k_truthy(b)); }
 
 // ── Calls ──────────────────────────────────────────────────────────────
+// ── Arity-specialized fast calls (no argv array on hot path) ────────
+// These avoid the alloca + argv build in the generated code AND bypass the
+// generic k_call dispatch by inlining the kind switch. Critical for speed
+// on recursive code (fib, factorial, etc.) where k_call overhead dominates.
+KVal* k_call0(KVal* fn) {
+    if (fn->kind == K_NATIVE && fn->as.native->fn) return fn->as.native->fn(0, NULL);
+    if (fn->kind == K_CLOSURE && fn->as.closure->fn) return fn->as.closure->fn(fn->as.closure->env, 0, NULL);
+    k_throw(k_err(k_str("calling non-function"))); return k_null();
+}
+KVal* k_call1(KVal* fn, KVal* a) {
+    if (fn->kind == K_NATIVE && fn->as.native->fn) { KVal* av[1]={a}; return fn->as.native->fn(1, av); }
+    if (fn->kind == K_CLOSURE && fn->as.closure->fn) return fn->as.closure->fn(fn->as.closure->env, 1, &a);
+    k_throw(k_err(k_str("calling non-function"))); return k_null();
+}
+KVal* k_call2(KVal* fn, KVal* a, KVal* b) {
+    if (fn->kind == K_NATIVE && fn->as.native->fn) { KVal* av[2]={a,b}; return fn->as.native->fn(2, av); }
+    if (fn->kind == K_CLOSURE && fn->as.closure->fn) { KVal* av[2]={a,b}; return fn->as.closure->fn(fn->as.closure->env, 2, av); }
+    k_throw(k_err(k_str("calling non-function"))); return k_null();
+}
+KVal* k_call3(KVal* fn, KVal* a, KVal* b, KVal* c) {
+    if (fn->kind == K_NATIVE && fn->as.native->fn) { KVal* av[3]={a,b,c}; return fn->as.native->fn(3, av); }
+    if (fn->kind == K_CLOSURE && fn->as.closure->fn) { KVal* av[3]={a,b,c}; return fn->as.closure->fn(fn->as.closure->env, 3, av); }
+    k_throw(k_err(k_str("calling non-function"))); return k_null();
+}
+
 KVal* k_call(KVal* fn, int argc, KVal** argv) {
     if (fn->kind == K_NATIVE && fn->as.native->fn) {
         return fn->as.native->fn(argc, argv);
@@ -562,6 +731,11 @@ KVal* k_call(KVal* fn, int argc, KVal** argv) {
     return k_null();
 }
 
+// Fast method calls (build a small on-stack array with self as arg 0)
+KVal* k_method0(KVal* obj, const char* name) { KVal* av[1]={obj}; return k_method(obj,name,0,av+1); }
+KVal* k_method1(KVal* obj, const char* name, KVal* a) { KVal* av[2]={obj,a}; return k_method(obj,name,1,av+1); }
+KVal* k_method2(KVal* obj, const char* name, KVal* a, KVal* b) { KVal* av[3]={obj,a,b}; return k_method(obj,name,2,av+1); }
+
 // ── Accessors ──────────────────────────────────────────────────────────
 static int k_find_field(KStruct* s, const char* name) {
     for (int i = 0; i < s->field_count; i++) if (strcmp(s->field_names[i], name) == 0) return i;
@@ -569,41 +743,23 @@ static int k_find_field(KStruct* s, const char* name) {
 }
 
 KVal* k_get_field(KVal* obj, const char* name) {
-    if (obj->kind == K_MUT_REF) return k_get_field(obj->as.mutref->inner, name);
     if (obj->kind == K_STRUCT) {
         int i = k_find_field(obj->as.struct_v, name);
         if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
         return k_retain(obj->as.struct_v->fields[i]);
     }
-    // Allow map.field as a shorthand for map["field"] (used by http req/resp,
-    // modules-as-structs, and dynamic objects).
-    if (obj->kind == K_MAP) {
-        KVal* key = k_str(name);
-        KMapEntry* e = k_map_lookup(obj->as.map, key, NULL);
-        k_release(key);
-        if (!e) k_throw(k_errf("object has no field '%s'", name));
-        return k_retain(e->val);
-    }
+    if (obj->kind == K_MUT_REF) return k_get_field(obj->as.mutref->inner, name);
     k_throw(k_errf("cannot access field '%s' on non-struct", name));
     return k_null();
 }
 
 void k_set_field(KVal* obj, const char* name, KVal* val) {
     if (obj->kind == K_MUT_REF) { k_set_field(obj->as.mutref->inner, name, val); return; }
-    if (obj->kind == K_STRUCT) {
-        int i = k_find_field(obj->as.struct_v, name);
-        if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
-        k_release(obj->as.struct_v->fields[i]);
-        obj->as.struct_v->fields[i] = k_retain(val);
-        return;
-    }
-    if (obj->kind == K_MAP) {
-        KVal* key = k_str(name);
-        k_index_set(obj, key, val);
-        k_release(key);
-        return;
-    }
-    k_throw(k_err(k_str("field assign on non-struct")));
+    if (obj->kind != K_STRUCT) k_throw(k_err(k_str("field assign on non-struct")));
+    int i = k_find_field(obj->as.struct_v, name);
+    if (i < 0) k_throw(k_errf("struct has no field '%s'", name));
+    k_release(obj->as.struct_v->fields[i]);
+    obj->as.struct_v->fields[i] = k_retain(val);
 }
 
 KVal* k_index(KVal* col, KVal* key) {
@@ -733,22 +889,35 @@ static void k_show_into(KVal* v, FILE* f) {
 }
 
 KVal* k_show(KVal* v) {
-    // Simple: use open_memstream if available, else grow a buffer manually.
-    char* buf = NULL; size_t sz = 0;
-    FILE* f = open_memstream(&buf, &sz);
+    // Portable: write into a tempfile, read back, then delete.
+    // On POSIX systems tmpfile() works; on Windows tmpfile() also works (in %TEMP%).
+    char sb[8192];
+    FILE* f = tmpfile();
     if (!f) {
-        // fallback: static buffer, truncated
-        static char sb[4096];
-        f = fmemopen(sb, sizeof(sb)-1, "w");
-        k_show_into(v, f);
-        size_t n = ftell(f); sb[n] = '\0'; fclose(f);
-        return k_str(sb);
+        // Last-resort: truncating snprintf into a static buffer won't work for
+        // arbitrary values; just return a tag string.
+        return k_str("<value>");
     }
     k_show_into(v, f);
+    fflush(f);
+    long n = ftell(f);
+    if (n < 0) { fclose(f); return k_str(""); }
+    rewind(f);
+    size_t to_read = (size_t)n;
+    char* buf = NULL;
+    if (to_read < sizeof(sb)) {
+        size_t r = fread(sb, 1, to_read, f);
+        sb[r] = '\0';
+        fclose(f);
+        return k_str(sb);
+    }
+    buf = (char*)malloc(to_read + 1);
+    size_t r = fread(buf, 1, to_read, f);
+    buf[r] = '\0';
     fclose(f);
-    KVal* r = k_str(buf ? buf : "");
+    KVal* rv = k_str(buf);
     free(buf);
-    return r;
+    return rv;
 }
 
 static KVal* k_str_buf(const char* fmt, ...) {
@@ -924,18 +1093,37 @@ static KVal* b_round(int argc, KVal** argv);
 static KVal* b_pow(int argc, KVal** argv);
 static KVal* b_clock(int argc, KVal** argv);
 static KVal* b_exit(int argc, KVal** argv);
+static KVal* b_dyn(int argc, KVal** argv);
+static KVal* b_map(int argc, KVal** argv);
+static KVal* b_filter(int argc, KVal** argv);
+static KVal* b_reduce(int argc, KVal** argv);
+static KVal* b_join(int argc, KVal** argv);
+static KVal* b_append(int argc, KVal** argv);
+static KVal* b_sort(int argc, KVal** argv);
+static KVal* b_reverse(int argc, KVal** argv);
+static KVal* b_starts_with(int argc, KVal** argv);
+static KVal* b_ends_with(int argc, KVal** argv);
+static KVal* b_replace(int argc, KVal** argv);
+static KVal* b_to_upper(int argc, KVal** argv);
+static KVal* b_to_lower(int argc, KVal** argv);
+static KVal* b_slice(int argc, KVal** argv);
+static KVal* b_index_of(int argc, KVal** argv);
 
 typedef struct { const char* name; KNativeFn fn; } Method;
 
 static Method g_methods[] = {
     {"show", b_show}, {"to_str", b_str}, {"str", b_str}, {"len", b_len},
-    {"push", b_push}, {"pop", b_pop},
+    {"push", b_push}, {"pop", b_pop}, {"append", b_append},
     {"is_ok", b_is_ok}, {"is_err", b_is_err}, {"is_empty", b_is_empty},
     {"unwrap", b_unwrap}, {"unwrap_or", b_unwrap_or},
     {"to_int", b_to_int}, {"to_float", b_to_float},
     {"keys", b_keys}, {"values", b_values}, {"contains", b_contains},
     {"split", b_split}, {"trim", b_trim}, {"chars", b_chars}, {"lines", b_lines},
     {"get", b_get}, {"set", b_set},
+    {"map", b_map}, {"filter", b_filter}, {"reduce", b_reduce}, {"join", b_join},
+    {"sort", b_sort}, {"reverse", b_reverse}, {"slice", b_slice}, {"index_of", b_index_of},
+    {"starts_with", b_starts_with}, {"ends_with", b_ends_with}, {"replace", b_replace},
+    {"to_upper", b_to_upper}, {"to_lower", b_to_lower},
     {"abs", b_abs}, {"min", b_min}, {"max", b_max}, {"sqrt", b_sqrt},
     {"sin", b_sin}, {"cos", b_cos}, {"tan", b_tan}, {"log", b_log}, {"exp", b_exp},
     {"floor", b_floor}, {"ceil", b_ceil}, {"round", b_round}, {"pow", b_pow},
@@ -943,15 +1131,20 @@ static Method g_methods[] = {
 };
 
 KVal* k_method(KVal* obj, const char* name, int argc, KVal** argv) {
+    // Dynamic dispatch on boxed trait objects.
+    if (obj->kind == K_DYNAMIC) return k_dynamic_method(obj->as.dynamic_v, name, argc, argv);
     // Static dispatch: TypeName.method(...) => call TypeName_method(argc, argv) without self
-    if (obj->kind == K_TYPE) {
+    const char* static_type = NULL;
+    if (obj->kind == K_TYPE) static_type = obj->as.type_v;
+    else if (obj->kind == K_NATIVE && obj->as.native->name) static_type = obj->as.native->name;
+    if (static_type) {
         char buf[512];
-        snprintf(buf, sizeof(buf), "%s_%s", obj->as.type_v, name);
+        snprintf(buf, sizeof(buf), "%s_%s", static_type, name);
         KVal* fn = k_global_get(buf);
-        if (fn && fn->kind == K_CLOSURE) {
+        if (fn && (fn->kind == K_CLOSURE || fn->kind == K_NATIVE)) {
             return k_call(fn, argc, argv);
         }
-        k_throw(k_errf("unknown static method '%s.%s'", obj->as.type_v, name));
+        k_throw(k_errf("unknown static method '%s.%s'", static_type, name));
         return k_null();
     }
     // Dispatch: if obj is a struct, first check for a field that is callable (module-style: io.println(...))
@@ -974,6 +1167,19 @@ KVal* k_method(KVal* obj, const char* name, int argc, KVal** argv) {
             for (int i = 0; i < argc; i++) targv[i+1] = argv[i];
             KVal* r = k_call(mfn, targc, targv);
             return r;
+        }
+        // Fallback: search vtables registered for this struct (default trait methods).
+        for(int vi=0;vi<obj->as.struct_v->vtable_count;vi++){
+            KVTable* vt = obj->as.struct_v->vtables[vi];
+            for(int mi=0;mi<vt->method_count;mi++){
+                if(strcmp(vt->methods[mi].name,name)==0){
+                    int targc = argc + 1;
+                    KVal** targv = (KVal**)alloca(sizeof(KVal*)*targc);
+                    targv[0] = obj;
+                    for (int i=0;i<argc;i++) targv[i+1]=argv[i];
+                    return vt->methods[mi].fn(NULL,targc,targv);
+                }
+            }
         }
     }
     int targc = argc + 1;
@@ -1189,6 +1395,61 @@ static KVal* b_panic(int argc, KVal** argv) {
     else k_throw(k_err(k_str("panic")));
     return k_null();
 }
+static KVal* b_dyn(int argc, KVal** argv) {
+    REQUIRE(2,"dyn(trait_name, value)"); TYPE(0,K_STRING,"dyn expects trait name string");
+    return k_dynamic_new(STR(0), argv[1]);
+}
+static KVal* b_append(int argc, KVal** argv) { return b_push(argc, argv); }
+static KVal* b_join(int argc, KVal** argv) {
+    REQUIRE(2,"join(list, sep)"); TYPE(0,K_LIST,"join expects list"); TYPE(1,K_STRING,"join sep must be string");
+    KList* l = argv[0]->as.list; const char* sep = STR(1); size_t sl = strlen(sep);
+    size_t cap = 64, len = 0; char* buf = (char*)malloc(cap);
+    for (int i = 0; i < l->count; i++) {
+        if (i > 0) { while(len+sl+1>cap){cap*=2;buf=(char*)realloc(buf,cap);} memcpy(buf+len,sep,sl); len+=sl; }
+        KVal* s = k_to_str(l->items[i]); const char* sv = s->as.string_v; size_t ns = strlen(sv);
+        while(len+ns+1>cap){cap*=2;buf=(char*)realloc(buf,cap);} memcpy(buf+len,sv,ns); len+=ns; k_release(s);
+    }
+    buf[len]=0; KVal* out = k_str_len(buf, len); free(buf); return out;
+}
+static int k_cmp_vals(const void* a, const void* b) {
+    KVal* x = *(KVal*const*)a; KVal* y = *(KVal*const*)b;
+    if (x->kind==K_INT && y->kind==K_INT) return (x->as.int_v<y->as.int_v)?-1:(x->as.int_v>y->as.int_v);
+    if (x->kind==K_FLOAT && y->kind==K_FLOAT) return (x->as.float_v<y->as.float_v)?-1:(x->as.float_v>y->as.float_v);
+    if (x->kind==K_STRING && y->kind==K_STRING) return strcmp(x->as.string_v,y->as.string_v);
+    return 0;
+}
+static KVal* b_sort(int argc, KVal** argv) { REQUIRE(1,"sort"); TYPE(0,K_LIST,"sort expects list"); qsort(argv[0]->as.list->items,argv[0]->as.list->count,sizeof(KVal*),k_cmp_vals); return k_retain(argv[0]); }
+static KVal* b_reverse(int argc, KVal** argv) { REQUIRE(1,"reverse"); TYPE(0,K_LIST,"reverse expects list"); KList*l=argv[0]->as.list; for(int i=0,j=l->count-1;i<j;i++,j--){KVal*t=l->items[i];l->items[i]=l->items[j];l->items[j]=t;} return k_retain(argv[0]); }
+static KVal* b_slice(int argc, KVal** argv) {
+    if(argc<2)k_throw(k_err(k_str("slice needs at least 2 args (obj,start[,end])")));
+    if(argv[0]->kind!=K_LIST&&argv[0]->kind!=K_STRING&&argv[0]->kind!=K_TUPLE)k_throw(k_err(k_str("slice: not list/string")));
+    TYPE(1,K_INT,"slice start");
+    int a=(int)argv[1]->as.int_v;
+    int sl = (argv[0]->kind==K_STRING)?(int)strlen(argv[0]->as.string_v)
+          :((argv[0]->kind==K_LIST)?argv[0]->as.list->count:argv[0]->as.tuple->count);
+    int b = (argc>=3) ? (int)argv[2]->as.int_v : sl;
+    if(argc>=3)TYPE(2,K_INT,"slice end");
+    if(argv[0]->kind==K_STRING){const char*s=STR(0);if(a<0)a+=sl;if(b<0)b+=sl;if(a<0)a=0;if(b>sl)b=sl;if(b<a)b=a;return k_str_len(s+a,b-a);}
+    KList*l=(argv[0]->kind==K_LIST)?argv[0]->as.list:argv[0]->as.tuple;
+    if(a<0)a+=sl;if(b<0)b+=sl;if(a<0)a=0;if(b>sl)b=sl;if(b<a)b=a; KVal*out=k_list_empty(); for(int i=a;i<b;i++)k_list_push(out,l->items[i]); return out;
+}
+static KVal* b_index_of(int argc, KVal** argv) {
+    REQUIRE(2,"index_of");
+    if(argv[0]->kind==K_STRING&&argv[1]->kind==K_STRING){const char*h=STR(0),*n=STR(1);const char*p=strstr(h,n);return k_int(p?(int)(p-h):-1);}
+    if(argv[0]->kind==K_LIST){KList*l=argv[0]->as.list;for(int i=0;i<l->count;i++)if(k_equals(l->items[i],argv[1]))return k_int(i);}
+    return k_int(-1);
+}
+static KVal* b_starts_with(int argc,KVal**argv){REQUIRE(2,"starts_with");TYPE(0,K_STRING,"s");TYPE(1,K_STRING,"p");const char*s=STR(0),*p=STR(1);size_t pl=strlen(p);return k_bool(strlen(s)>=pl&&memcmp(s,p,pl)==0);}
+static KVal* b_ends_with(int argc,KVal**argv){REQUIRE(2,"ends_with");TYPE(0,K_STRING,"s");TYPE(1,K_STRING,"p");const char*s=STR(0),*p=STR(1);size_t sl=strlen(s),pl=strlen(p);return k_bool(sl>=pl&&memcmp(s+sl-pl,p,pl)==0);}
+static KVal* b_to_upper(int argc,KVal**argv){REQUIRE(1,"to_upper");TYPE(0,K_STRING,"s");const char*s=STR(0);size_t n=strlen(s);char*b=(char*)malloc(n+1);for(size_t i=0;i<=n;i++){char c=s[i];b[i]=(c>='a'&&c<='z')?c-32:c;}KVal*r=k_str_len(b,n);free(b);return r;}
+static KVal* b_to_lower(int argc,KVal**argv){REQUIRE(1,"to_lower");TYPE(0,K_STRING,"s");const char*s=STR(0);size_t n=strlen(s);char*b=(char*)malloc(n+1);for(size_t i=0;i<=n;i++){char c=s[i];b[i]=(c>='A'&&c<='Z')?c+32:c;}KVal*r=k_str_len(b,n);free(b);return r;}
+static KVal* b_replace(int argc,KVal**argv){REQUIRE(3,"replace");TYPE(0,K_STRING,"s");TYPE(1,K_STRING,"from");TYPE(2,K_STRING,"to");
+    const char*s=STR(0),*f=STR(1),*r=STR(2);size_t fl=strlen(f);KVal*parts=k_list_empty();const char*p=s;
+    while(*p){const char*q=strstr(p,f);if(!q){k_list_push(parts,k_str(p));break;}if(q>p)k_list_push(parts,k_str_len(p,q-p));k_list_push(parts,k_str(r));p=q+fl;}
+    KList*ol=parts->as.list;size_t cap=64,len=0;char*buf=(char*)malloc(cap);
+    for(int i=0;i<ol->count;i++){const char*sv=ol->items[i]->as.string_v;size_t ns=strlen(sv);while(len+ns+1>cap){cap*=2;buf=(char*)realloc(buf,cap);}memcpy(buf+len,sv,ns);len+=ns;}
+    buf[len]=0;KVal*res=k_str_len(buf,len);free(buf);k_release(parts);(void)r;return res;
+}
 // Helper to build a module object (a struct-like KVal holding named functions)
 #define MOD_MAX_FIELDS 64
 KVal* k_module(const char* name) {
@@ -1197,6 +1458,7 @@ KVal* k_module(const char* name) {
     s->name = name; s->field_count = 0;
     s->field_names = (const char**)k_alloc(sizeof(char*)*MOD_MAX_FIELDS);
     s->fields = (KVal**)k_alloc(sizeof(KVal*)*MOD_MAX_FIELDS);
+    s->vtables = NULL; s->vtable_count = 0;
     v->as.struct_v = s;
     return v;
 }
@@ -1244,34 +1506,64 @@ static KVal* b_range(int argc, KVal** argv) {
     return out;
 }
 
-// Global table
+// Global table — open-addressing hash table (no collision chains; rehashes on load).
+// This is a massive speedup for recursive code that does k_global_get("fib") 18M times.
 #define K_GLOBALS_MAX 4096
+#define G_HT_CAP 1024
 static struct { const char* name; KVal* val; } g_globals[K_GLOBALS_MAX];
 static int g_globals_count = 0;
+static struct { const char* name; KVal* val; int used; } g_ht[G_HT_CAP];
+
+static uint32_t g_hash_name(const char* s) {
+    uint32_t h = 2166136261u;
+    while (*s) { h ^= (uint8_t)*s++; h *= 16777619u; }
+    return h;
+}
+static void g_ht_put(const char* name, KVal* val) {
+    uint32_t h = g_hash_name(name) & (G_HT_CAP - 1);
+    while (g_ht[h].used && strcmp(g_ht[h].name, name) != 0) h = (h+1) & (G_HT_CAP-1);
+    g_ht[h].name = name; g_ht[h].val = val; g_ht[h].used = 1;
+}
 
 KVal* k_global_get(const char* name) {
-    for (int i = 0; i < g_globals_count; i++) if (strcmp(g_globals[i].name, name) == 0) return g_globals[i].val;
+    uint32_t h = g_hash_name(name) & (G_HT_CAP - 1);
+    while (g_ht[h].used) {
+        if (strcmp(g_ht[h].name, name) == 0) return g_ht[h].val;
+        h = (h+1) & (G_HT_CAP-1);
+    }
     return NULL;
 }
 void k_global_set(const char* name, KVal* val) {
-    // Check existing first
-    for (int i = 0; i < g_globals_count; i++) {
-        if (strcmp(g_globals[i].name, name) == 0) {
-            k_release(g_globals[i].val);
-            g_globals[i].val = k_retain(val);
+    // Fast path: already in hash table?
+    uint32_t h = g_hash_name(name) & (G_HT_CAP - 1);
+    while (g_ht[h].used) {
+        if (strcmp(g_ht[h].name, name) == 0) {
+            k_release(g_ht[h].val);
+            g_ht[h].val = k_retain(val);
             return;
         }
+        h = (h+1) & (G_HT_CAP-1);
     }
+    // New global
     if (g_globals_count >= K_GLOBALS_MAX) { fprintf(stderr,"too many globals\n"); exit(1); }
-    g_globals[g_globals_count].name = k_strdup(name);
+    const char* dup = k_strdup(name);
+    g_globals[g_globals_count].name = dup;
     g_globals[g_globals_count].val = k_retain(val);
     g_globals_count++;
+    g_ht_put(dup, val);
 }
 
 double k_current_time(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER freq = {0};
+    if (!freq.QuadPart) QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER c; QueryPerformanceCounter(&c);
+    return (double)c.QuadPart / (double)freq.QuadPart;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec * 1e-9;
+#endif
 }
 
 void k_register_stdlib(void) {
@@ -1320,7 +1612,43 @@ void k_register_stdlib(void) {
     DEF_GLOBAL("reduce", b_reduce);
     DEF_GLOBAL("foreach", b_foreach);
     DEF_GLOBAL("type_name", b_type_name);
+    DEF_GLOBAL("typeof", b_type_name);
     DEF_GLOBAL("panic", b_panic);
+    DEF_GLOBAL("dyn", b_dyn);
+    DEF_GLOBAL("join", b_join);
+    DEF_GLOBAL("append", b_append);
+    DEF_GLOBAL("sort", b_sort);
+    DEF_GLOBAL("reverse", b_reverse);
+    DEF_GLOBAL("slice", b_slice);
+    DEF_GLOBAL("list_slice", b_slice);
+    DEF_GLOBAL("index_of", b_index_of);
+    DEF_GLOBAL("list_index_of", b_index_of);
+    DEF_GLOBAL("list_push", b_push);
+    DEF_GLOBAL("list_pop", b_pop);
+    DEF_GLOBAL("list_len", b_len);
+    DEF_GLOBAL("list_map", b_map);
+    DEF_GLOBAL("list_filter", b_filter);
+    DEF_GLOBAL("list_reduce", b_reduce);
+    DEF_GLOBAL("list_join", b_join);
+    DEF_GLOBAL("list_sort", b_sort);
+    DEF_GLOBAL("list_reverse", b_reverse);
+    DEF_GLOBAL("str_split", b_split);
+    DEF_GLOBAL("str_trim", b_trim);
+    DEF_GLOBAL("str_len", b_len);
+    DEF_GLOBAL("str_chars", b_chars);
+    DEF_GLOBAL("str_lines", b_lines);
+    DEF_GLOBAL("str_starts_with", b_starts_with);
+    DEF_GLOBAL("str_ends_with", b_ends_with);
+    DEF_GLOBAL("str_replace", b_replace);
+    DEF_GLOBAL("str_to_upper", b_to_upper);
+    DEF_GLOBAL("str_to_lower", b_to_lower);
+    DEF_GLOBAL("map_keys", b_keys);
+    DEF_GLOBAL("map_values", b_values);
+    DEF_GLOBAL("starts_with", b_starts_with);
+    DEF_GLOBAL("ends_with", b_ends_with);
+    DEF_GLOBAL("replace", b_replace);
+    DEF_GLOBAL("to_upper", b_to_upper);
+    DEF_GLOBAL("to_lower", b_to_lower);
     // Module objects (io, math, str, list, ...)
     {
         KVal* io = k_module("io");
@@ -1375,6 +1703,7 @@ void k_register_stdlib(void) {
 #ifdef KRT_MAIN
 int main(int argc, char** argv) {
     (void)argc; (void)argv;
+    k_init_cache();
     k_register_stdlib();
     extern void k_register_stdlib_extra(void);
     k_register_stdlib_extra();

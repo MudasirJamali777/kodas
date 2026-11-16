@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KODAS: Where Logic Knows No Bounds, and Creation Knows No End</title>
+<meta name="description" content="KODAS is a programming language by Mudasir Ali. It compiles to C and builds standalone native binaries.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=DM+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--b:#2352b5;--bd:#1b3f93;--bn:#14307a;--tint:#dfe8ff;color-scheme:light;box-sizing:border-box;padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px);scroll-behavior:smooth}
+*{box-sizing:border-box;margin:0}
+body{background:var(--b);color:#fff;font:500 18px/1.55 'DM Sans',system-ui,sans-serif;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid #fff;outline-offset:3px;border-radius:14px}
+.m{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.st{background:#fff;color:var(--b);border:3px solid var(--b);border-radius:30px;box-shadow:0 0 0 9px #fff,0 14px 26px 6px rgba(8,20,70,.38)}
+.pill{display:inline-block;padding:9px 22px;border-radius:99px;font-weight:700;font-size:15px}
+.dr{touch-action:pan-y;cursor:grab;user-select:none;-webkit-user-select:none;transform:translate(var(--tx,0px),var(--ty,0px)) rotate(var(--rot,0deg));transition:transform .6s cubic-bezier(.2,1.6,.4,1),scale 1s cubic-bezier(.2,1.4,.4,1),opacity .8s}
+.dr.on{cursor:grabbing;transition:none;z-index:20}
+nav{position:fixed;top:calc(env(safe-area-inset-top,0px) + 16px);left:50%;translate:-50% 0;z-index:30;display:flex;align-items:center;gap:22px;padding:7px 7px 7px 24px;border-radius:99px;font-size:14px;white-space:nowrap;box-shadow:0 0 0 6px #fff,0 12px 24px 4px rgba(8,20,70,.35)}
+nav b{font:400 22px 'Bagel Fat One',sans-serif;color:var(--b)}
+nav a.l{opacity:.75;transition:opacity .2s}nav a.l:hover{opacity:1}
+nav .go{background:var(--b);color:#fff;transition:transform .5s cubic-bezier(.2,1.6,.4,1)}nav .go:hover{transform:scale(1.08) rotate(-2deg)}
+@media(max-width:1000px){nav a.l{display:none}nav{gap:14px}}
+section,header{position:relative}
+.bgf{font-family:'Bagel Fat One','Arial Rounded MT Bold',system-ui,sans-serif;font-weight:400}
+.wv{position:absolute;left:-2%;top:-1px;width:104%;height:clamp(44px,7vw,100px);display:block;animation:sw 9s ease-in-out infinite alternate;pointer-events:none;z-index:2}
+@keyframes sw{to{transform:translateX(2%)}}
+.blob{position:absolute;border-radius:50%;background:var(--bd);animation:dr 16s ease-in-out infinite alternate;pointer-events:none}
+@keyframes dr{to{transform:translate(4vmin,3vmin) rotate(6deg)}}
+#hero{min-height:100svh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:110px 20px 90px;overflow:hidden}
+.hl{position:relative;z-index:3;margin-bottom:2vh;animation:up 1s cubic-bezier(.2,.8,.2,1) both}
+@keyframes up{from{opacity:0;transform:translateY(40px)}}
+h1{position:relative;z-index:3;font:400 clamp(84px,23vw,330px)/.88 'Bagel Fat One',sans-serif;color:#fff;text-shadow:0 .055em 0 var(--bn);display:flex;justify-content:center}
+.L{display:inline-block;animation:up 1.1s cubic-bezier(.2,1.5,.4,1) both,bob 3.6s ease-in-out infinite;transition:transform .5s cubic-bezier(.2,1.8,.4,1)}
+.L:nth-child(1){animation-delay:.05s,1.2s}.L:nth-child(2){animation-delay:.12s,1.5s}.L:nth-child(3){animation-delay:.19s,1.8s}.L:nth-child(4){animation-delay:.26s,2.1s}.L:nth-child(5){animation-delay:.33s,2.4s}
+@keyframes bob{50%{translate:0 -.03em}}
+.L:hover{transform:translateY(-.1em) rotate(-7deg) scale(1.08)}
+.slg{position:relative;z-index:3;font:400 clamp(24px,3.6vw,50px)/1.18 'Bagel Fat One',sans-serif;margin:3vh 0 14px;animation:up 1.1s .5s cubic-bezier(.2,.8,.2,1) both}
+.slg em,.slg i{font-style:normal;background:#fff;color:var(--b);padding:0 .35em;border-radius:99px;display:inline-block;rotate:-3deg;box-shadow:0 .08em 0 var(--bn)}.slg i{rotate:2.5deg}
+.sub{position:relative;z-index:3;font-size:clamp(16px,1.6vw,21px);margin-bottom:26px;opacity:.95}
+.btns{position:relative;z-index:3;display:flex;gap:16px;justify-content:center;flex-wrap:wrap;animation:up 1.1s .7s cubic-bezier(.2,.8,.2,1) both}
+.bt{display:inline-block;padding:15px 32px;border-radius:99px;background:#fff;color:var(--b);font-weight:700;box-shadow:0 5px 0 var(--bn);transition:transform .45s cubic-bezier(.2,1.8,.4,1),box-shadow .2s;border:0;cursor:pointer;font-family:inherit;font-size:inherit}
+.bt:hover{transform:translateY(-4px) rotate(-2deg) scale(1.05);box-shadow:0 9px 0 var(--bn)}.bt:active{transform:translateY(4px);box-shadow:0 1px 0 var(--bn)}
+.bt.o{background:transparent;color:#fff;box-shadow:inset 0 0 0 3px #fff,0 5px 0 var(--bn)}
+.sk{position:absolute;z-index:5;font:400 clamp(26px,4vw,48px)/1 'Bagel Fat One',sans-serif;padding:14px 22px;border-radius:26px;animation:fl 5s ease-in-out infinite alternate}
+@keyframes fl{to{translate:0 -12px}}
+.slot{display:block;position:absolute;pointer-events:none;aspect-ratio:240/260}.slot.k{aspect-ratio:260/262}
+.stm{height:290vh;background:#fff;color:var(--b)}
+.stm>div{position:sticky;top:0;height:100svh;display:flex;align-items:center;padding:0 7vw}
+.stm p{font:400 clamp(34px,6.2vw,92px)/1.05 'Bagel Fat One',sans-serif;max-width:12.5em}
+.w{opacity:.16}
+@media(max-width:760px){.stm p{align-self:flex-start;margin-top:14vh}}
+.pad{padding:clamp(110px,18vh,190px) 7vw 14vh}
+.wh{background:#fff;color:var(--b)}.nv{background:var(--bn)}
+h2{font:400 clamp(42px,7vw,104px)/.95 'Bagel Fat One',sans-serif;text-shadow:0 .05em 0 var(--bn);margin-bottom:22px}
+.wh h2{text-shadow:0 .05em 0 var(--tint)}
+.lead{font-size:clamp(17px,1.7vw,22px);max-width:32em;opacity:.92}
+.hint{display:inline-block;margin-top:22px;font-size:14px;font-weight:700;background:rgba(255,255,255,.18);padding:6px 16px;border-radius:99px}
+.wh .hint{background:var(--tint)}
+.rv{opacity:0;scale:.6}.rv.in{opacity:1;scale:1}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:9vh}
+@media(max-width:800px){.two{grid-template-columns:1fr}}
+.cc{padding:30px;text-align:center;color:var(--b)}
+.pic{position:relative;aspect-ratio:1;width:min(62%,250px);margin:0 auto 20px;border-radius:50%;background:var(--tint);box-shadow:inset 0 0 0 3px var(--b)}
+.pic .slot{left:50%;top:52%;translate:-50% -50%;width:80%}
+.cc h3{font:400 clamp(40px,4.4vw,64px)/1 'Bagel Fat One',sans-serif}
+.role{display:inline-block;margin:10px 0 14px;background:var(--b);color:#fff;font-weight:700;padding:6px 18px;border-radius:99px;font-size:14px;letter-spacing:.04em}
+.cc p{font-size:17px;max-width:24em;margin:0 auto}
+.code{display:grid;grid-template-columns:1fr 1.25fr;gap:5vw;align-items:center}
+@media(max-width:900px){.code{grid-template-columns:1fr}}
+.tabs{display:flex;gap:10px;flex-wrap:wrap;margin:24px 0 18px}
+.tb{border:0;cursor:pointer;font:700 14px 'DM Sans',sans-serif;padding:9px 18px;border-radius:99px;background:rgba(255,255,255,.16);color:#fff;transition:transform .4s cubic-bezier(.2,1.8,.4,1),background .2s}
+.tb:hover{transform:scale(1.08) rotate(-2deg)}.tb.on{background:#fff;color:var(--b)}
+#cap{max-width:30em;opacity:.92;min-height:3.2em}
+.ww{position:relative;margin-top:clamp(90px,15vmin,170px)}
+.card{overflow:hidden;color:var(--b);border-radius:36px}
+.bar{display:flex;align-items:center;gap:8px;padding:16px 22px;font-size:13px;font-weight:700}
+.bar i{width:13px;height:13px;border-radius:50%;background:var(--b)}.bar i:nth-child(2){background:#9bb4ee}.bar i:nth-child(3){background:var(--tint);box-shadow:inset 0 0 0 2px var(--b)}
+.bar button{margin-left:auto;border:0;cursor:pointer;background:var(--b);color:#fff;border-radius:99px;padding:7px 22px;font:700 13px 'IBM Plex Mono',monospace;box-shadow:0 3px 0 var(--bn);transition:transform .4s cubic-bezier(.2,1.8,.4,1)}
+.bar button:hover{transform:scale(1.1) rotate(-3deg)}
+pre{font:500 14.5px/1.8 'IBM Plex Mono',monospace;padding:4px 26px 26px;overflow-x:auto;white-space:pre;min-height:230px}
+.k{color:var(--b);font-weight:700}.c{color:#8ea6dc}.s2{color:#4d7be0}.n{color:#14307a;text-decoration:underline wavy #9bb4ee}
+.bench{padding:34px;color:var(--b);margin-top:8vh;max-width:980px}
+.row{display:grid;grid-template-columns:130px 1fr 130px;gap:18px;align-items:center;margin-bottom:20px;font-weight:700}
+@media(max-width:640px){.row{grid-template-columns:1fr 70px;}.row .bar2{grid-column:1/-1;order:3}}
+.row small{display:block;font:500 12px 'IBM Plex Mono',monospace;opacity:.6}
+.bar2{height:30px;border-radius:99px;background:var(--tint);box-shadow:inset 0 0 0 2.5px var(--b);overflow:hidden}
+.bar2 i{display:block;height:100%;width:0;border-radius:99px;background:var(--b);transition:width 1.8s cubic-bezier(.2,.9,.2,1) var(--d,0s)}
+.bench.in .bar2 i{width:var(--w)}.row.me .bar2 i{background:var(--bn)}
+.row .v{text-align:right;font:500 15px 'IBM Plex Mono',monospace}
+.note{font-size:14px;opacity:.75;margin-top:6px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:34px;margin-top:7vh}
+.cs{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:8vh}
+@media(max-width:1000px){.steps{grid-template-columns:repeat(2,1fr)}.cs{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.steps,.cs{grid-template-columns:1fr;max-width:400px}}
+.fc{padding:26px;display:flex;flex-direction:column;gap:10px;position:relative;min-height:230px}
+.fc small{font:700 12px 'IBM Plex Mono',monospace;letter-spacing:.18em;opacity:.55}
+.fc h3{font:400 clamp(26px,2.6vw,36px)/1 'Bagel Fat One',sans-serif}
+.fc p{font-size:15.5px;line-height:1.45}
+.fc code{margin-top:auto;font:500 13px 'IBM Plex Mono',monospace;background:var(--b);color:#fff;padding:10px 14px;border-radius:16px;overflow-x:auto;white-space:nowrap}
+h4{font:400 clamp(30px,3.4vw,46px)/1 'Bagel Fat One',sans-serif;margin-top:12vh;text-shadow:0 .05em 0 var(--bn)}
+.rm{display:grid;grid-template-columns:repeat(3,1fr);gap:34px;margin-top:8vh}
+@media(max-width:900px){.rm{grid-template-columns:1fr;max-width:480px}}
+.rm ul{padding-left:20px;font-size:16px}.rm li{margin-bottom:6px}
+.tag{align-self:flex-start;background:var(--b);color:#fff;border-radius:99px;padding:4px 14px;font:700 12px 'IBM Plex Mono',monospace;letter-spacing:.1em}
+.faq{max-width:860px;margin-top:7vh;display:flex;flex-direction:column;gap:26px}
+details.st{padding:0;border-radius:30px}
+summary{list-style:none;cursor:pointer;padding:20px 28px;font:400 clamp(20px,2.2vw,28px)/1.2 'Bagel Fat One',sans-serif;display:flex;justify-content:space-between;align-items:center;gap:16px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";flex:none;width:36px;height:36px;border-radius:50%;background:var(--b);color:#fff;display:grid;place-items:center;font:700 24px 'DM Sans',sans-serif;transition:transform .5s cubic-bezier(.2,1.8,.4,1)}
+details[open] summary::after{transform:rotate(135deg)}
+details p{padding:0 28px 24px;animation:up .6s cubic-bezier(.2,.8,.2,1) both}
+#dev{display:grid;grid-template-columns:1.25fr 1fr;gap:5vw;align-items:center}
+@media(max-width:860px){#dev{grid-template-columns:1fr}}
+.nm{font:400 clamp(54px,10vw,160px)/.9 'Bagel Fat One',sans-serif;text-shadow:0 .05em 0 var(--bn);margin:4vh 0 14px}
+.rl{display:inline-block;background:#fff;color:var(--b);font-weight:700;padding:8px 20px;border-radius:99px;rotate:-2deg;box-shadow:0 4px 0 var(--bn)}
+.badge{position:relative;width:clamp(270px,44vmin,500px);aspect-ratio:1;border-radius:50%;justify-self:center}
+.badge svg{position:absolute;inset:0;width:100%;height:100%;animation:spin 40s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.cta{background:#fff;color:var(--b);text-align:center;display:flex;flex-direction:column;align-items:center;padding-bottom:6vh}
+.pair{display:flex;gap:2vw;justify-content:center;margin-bottom:2vh}
+.pair .slot{position:relative;width:clamp(120px,22vmin,260px)}
+.huge{font:400 clamp(84px,22vw,340px)/.85 'Bagel Fat One',sans-serif;text-shadow:0 .05em 0 var(--tint)}
+.cta .slg{margin:2vh 0 0;max-width:19em;animation:none}.cta .slg em,.cta .slg i{background:var(--b);color:#fff}
+.inst{display:inline-flex;align-items:center;gap:14px;padding:9px 9px 9px 26px;border-radius:99px;background:var(--tint);box-shadow:inset 0 0 0 3px var(--b);font-size:14.5px;max-width:100%;color:var(--b)}
+.inst code{overflow-x:auto;white-space:nowrap}.inst button{border:0;cursor:pointer;background:var(--b);color:#fff;border-radius:99px;padding:9px 22px;font:700 14px 'DM Sans',sans-serif;box-shadow:0 3px 0 var(--bn)}
+.cta .btns{margin:6vh 0 4vh;animation:none}.cta .bt{background:var(--b);color:#fff}
+footer{width:100%;margin-top:12vh;padding-top:24px;border-top:3px dashed rgba(35,82,181,.35);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:14px;font-weight:700}
+#dpc{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:24}
+.sb{position:fixed;left:0;top:0;z-index:26;pointer-events:none;padding:10px 20px;font:400 22px 'Bagel Fat One',sans-serif;opacity:0;scale:.4;transition:opacity .25s,scale .5s cubic-bezier(.2,1.8,.4,1);white-space:nowrap;border-radius:99px}
+.sb.on{opacity:1;scale:1}
+.mas{position:fixed;left:0;top:0;z-index:25;pointer-events:none;will-change:transform}
+.mas .in{width:100%;height:100%;pointer-events:auto;cursor:pointer;animation:pop 1.2s cubic-bezier(.3,1.7,.5,1) .5s both}
+.mas .in.sq{animation:jump .7s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{transform:scale(0) rotate(-25deg)}}
+@keyframes jump{0%{transform:scale(1)}18%{transform:scale(1.2,.78)}45%{transform:translateY(-14%) scale(.9,1.14)}70%{transform:scale(1.06,.95)}100%{transform:scale(1)}}
+.mas svg{width:100%;height:100%;overflow:visible;filter:url(#stk) drop-shadow(0 10px 10px rgba(8,20,70,.4))}
+.bd{fill:#fff;stroke:var(--b);stroke-width:7;stroke-linejoin:round;stroke-linecap:round}
+.ol{fill:var(--b);stroke:var(--b);stroke-width:14;stroke-linejoin:round}.fl{fill:#fff}
+.dk{fill:var(--b)}.mo{fill:none;stroke:var(--b);stroke-width:5;stroke-linecap:round}
+#tail{transform-origin:70px 205px;animation:wag .7s ease-in-out infinite alternate}
+@keyframes wag{from{transform:rotate(-14deg)}to{transform:rotate(16deg)}}
+#arm{transform-origin:214px 176px;animation:wave 1.1s ease-in-out infinite alternate}
+@keyframes wave{from{transform:rotate(-8deg)}to{transform:rotate(22deg)}}
+.wf path,.wf circle{animation:pl 1.8s ease-in-out infinite}.wf path+path{animation-delay:.2s}.wf circle{animation-delay:.4s}
+@keyframes pl{0%,100%{opacity:.25}40%{opacity:1}}
+.tg{fill:#fff;stroke:var(--b);stroke-width:4;opacity:0;transition:opacity .2s}.hap .tg{opacity:1}
+.ey{transform-box:fill-box;transform-origin:center}
+/* --- Downloads section --- */
+#download{background:#fff;color:var(--b)}
+.dl{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;margin-top:7vh}
+@media(max-width:960px){.dl{grid-template-columns:1fr;max-width:460px}}
+.dc{position:relative;display:flex;flex-direction:column;gap:14px;padding:32px 28px 28px;border-radius:30px;background:#fff;color:var(--b);border:3px solid var(--b);box-shadow:0 0 0 9px #fff,0 14px 26px 6px rgba(8,20,70,.28)}
+.dc .os{font:400 38px/1 'Bagel Fat One',sans-serif;display:flex;align-items:center;gap:14px}
+.dc .os .ico{font-size:34px;line-height:1}
+.dc .pl{font:700 13px 'IBM Plex Mono',monospace;letter-spacing:.14em;opacity:.6}
+.dc .arch{font-size:15px;line-height:1.45;color:var(--bd);font-weight:500}
+.dc .sz{font:700 12px 'IBM Plex Mono',monospace;letter-spacing:.1em;background:var(--tint);color:var(--b);padding:5px 12px;border-radius:99px;align-self:flex-start}
+.dc .cmds{font:500 13px 'IBM Plex Mono',monospace;background:var(--b);color:#fff;padding:14px 16px;border-radius:16px;white-space:pre;overflow-x:auto;margin-top:auto}
+.dc .db{display:inline-block;text-align:center;padding:13px 20px;border-radius:99px;background:var(--b);color:#fff;font-weight:700;font-size:15px;box-shadow:0 5px 0 var(--bn);transition:transform .4s cubic-bezier(.2,1.8,.4,1),box-shadow .2s}
+.dc .db:hover{transform:translateY(-3px) rotate(-1.5deg) scale(1.04);box-shadow:0 8px 0 var(--bn)}
+.dc .db:active{transform:translateY(3px);box-shadow:0 2px 0 var(--bn)}
+.dc .db.alt{background:#fff;color:var(--b);box-shadow:inset 0 0 0 3px var(--b),0 5px 0 var(--bn);margin-left:10px}
+.dc .db.alt:hover{box-shadow:inset 0 0 0 3px var(--b),0 8px 0 var(--bn)}
+.dc.cur::after{content:"RECOMMENDED FOR YOU";position:absolute;top:-13px;right:24px;background:var(--b);color:#fff;font:700 11px 'IBM Plex Mono',monospace;letter-spacing:.12em;padding:5px 12px;border-radius:99px;box-shadow:0 3px 0 var(--bn);animation:bob 3s ease-in-out infinite alternate}
+.dc.coming{opacity:.8}.dc.coming .cmds{background:#8da4d8}
+.dlinfo{max-width:780px;margin:5vh auto 0;text-align:center;font-size:15px;color:var(--bd);font-weight:500;line-height:1.55}
+.dlinfo code{font-family:'IBM Plex Mono',ui-monospace,monospace;background:var(--tint);padding:2px 8px;border-radius:8px}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.L,.hl,.slg,.btns,.sk,.wv,.blob,#tail,#arm,.wf *,.badge svg,.mas .in,details p{animation:none}.rv{opacity:1;scale:1}.bar2 i{transition:none}}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><filter id="stk" x="-25%" y="-25%" width="150%" height="150%"><feMorphology in="SourceAlpha" operator="dilate" radius="7" result="d"/><feGaussianBlur in="d" stdDeviation="3" result="bl"/><feComponentTransfer in="bl" result="sh"><feFuncA type="linear" slope="9" intercept="-3.5"/></feComponentTransfer><feFlood flood-color="#fff"/><feComposite in2="sh" operator="in" result="wh"/><feMerge><feMergeNode in="wh"/><feMergeNode in="SourceGraphic"/></feMerge></filter></svg>
+<canvas id="dpc" aria-hidden="true"></canvas>
+
+<div class="mas" id="mm" data-who="m" role="button" aria-label="Morty the dog, KODAS mascot for the computer. Press to say hi" tabindex="0"><div class="in"><svg viewBox="0 0 240 260"><g id="tail"><path class="bd" d="M74 205C44 208 28 178 44 160C54 186 70 186 86 190Z"/></g>
+<path class="bd" d="M70 62C40 56 32 94 48 110C64 118 76 100 76 82Z"/><path class="bd" d="M72 135C58 190 66 238 120 240C174 242 188 192 172 138Z"/>
+<rect class="bd" x="84" y="212" width="32" height="34" rx="16"/><rect class="bd" x="124" y="212" width="32" height="34" rx="16"/>
+<ellipse class="bd" cx="118" cy="88" rx="62" ry="54"/>
+<g class="ear"><path class="dk" d="M154 44C198 32 216 78 192 108C176 126 154 110 150 84Z"/></g>
+<g class="ey"><ellipse class="dk" cx="96" cy="88" rx="6.5" ry="9"/><circle fill="#fff" cx="94" cy="84" r="2.2"/></g><g class="ey"><ellipse class="dk" cx="138" cy="92" rx="6.5" ry="9"/></g>
+<ellipse class="dk" cx="118" cy="108" rx="10" ry="7"/><path class="mo" d="M103 119Q118 134 133 119"/><path class="tg" d="M112 126Q118 146 126 126Z"/></svg></div></div>
+
+<div class="mas" id="mk" data-who="k" role="button" aria-label="Kun the cloud, KODAS mascot for the web. Press to say hi" tabindex="0"><div class="in"><svg viewBox="0 0 260 262"><defs><g id="kb"><circle cx="88" cy="118" r="48"/><circle cx="132" cy="92" r="58"/><circle cx="184" cy="116" r="46"/><rect x="48" y="120" width="170" height="76" rx="38"/></g></defs>
+<g class="wf" fill="none" stroke="#2352b5" stroke-width="6" stroke-linecap="round"><path d="M108 34Q132 8 156 34"/><path d="M118 44Q132 30 146 44"/><circle cx="132" cy="54" r="4.5" fill="#2352b5" stroke="none"/></g>
+<g transform="translate(0 28)"><ellipse class="bd" cx="46" cy="156" rx="13" ry="20" transform="rotate(28 46 156)"/><ellipse class="bd" cx="100" cy="198" rx="17" ry="12"/><ellipse class="bd" cx="166" cy="198" rx="17" ry="12"/>
+<use href="#kb" class="ol"/><use href="#kb" class="fl"/>
+<g id="arm"><ellipse class="bd" cx="216" cy="156" rx="13" ry="20" transform="rotate(-28 216 156)"/></g>
+<circle fill="#cfdcff" cx="84" cy="148" r="9"/><circle fill="#cfdcff" cx="182" cy="148" r="9"/>
+<g class="ey"><ellipse class="dk" cx="106" cy="126" rx="7.5" ry="10.5"/><circle fill="#fff" cx="104" cy="122" r="2.6"/></g><g class="ey"><ellipse class="dk" cx="160" cy="126" rx="7.5" ry="10.5"/><circle fill="#fff" cx="158" cy="122" r="2.6"/></g>
+<path class="dk" d="M122 146Q133 164 144 146Z"/></g></svg></div></div>
+
+<nav class="st"><b>KODAS</b><a class="l" href="#why">Why</a><a class="l" href="#crew">Crew</a><a class="l" href="#code">Code</a><a class="l" href="#speed">Speed</a><a class="l" href="#download">Download</a><a class="l" href="#docs">Docs</a><a class="l" href="#faq">FAQ</a><a class="pill go" href="#download">Get KODAS</a></nav>
+
+<header id="hero">
+  <div class="blob" style="width:75vmin;height:48vmin;right:-22vmin;top:-20vmin"></div><div class="blob" style="width:90vmin;height:50vmin;left:-30vmin;bottom:-22vmin;animation-delay:-6s"></div>
+  <i class="slot" data-m="m" style="right:5vw;top:11vh;width:clamp(110px,19vmin,240px)"></i><i class="slot k" data-m="k" style="left:5vw;top:12vh;width:clamp(110px,19vmin,240px)"></i>
+  <div class="sk st dr rv in" style="left:7vw;bottom:20vh;--rot:-9deg">{ }</div>
+  <div class="sk st dr rv in" style="right:8vw;bottom:17vh;--rot:8deg;animation-delay:-2s">&lt;/&gt;</div>
+  <div class="hl pill st">v0.17 · a programming language by Mudasir Ali</div>
+  <h1 aria-label="KODAS"><span class="L" aria-hidden="true">K</span><span class="L" aria-hidden="true">O</span><span class="L" aria-hidden="true">D</span><span class="L" aria-hidden="true">A</span><span class="L" aria-hidden="true">S</span></h1>
+  <p class="slg">Where <em>Logic</em> Knows No Bounds,<br>and <i>Creation</i> Knows No End.</p>
+  <p class="sub">Compiles to C. Builds native binaries. Reads like plain thought.</p>
+  <div class="btns"><a class="bt" href="#download">Get KODAS</a><a class="bt o" href="#code">See the code</a></div>
+</header>
+
+<div class="stm" id="why"><svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#2352b5"/></svg><div><p id="st" data-t="Some languages are made for the web. Some for the machine. Some for the mind. KODAS is one voice for all of it, compiled to C and ready for whatever you dream next."></p>
+<i class="slot" data-m="m" style="right:7vw;top:26%;width:clamp(110px,24vmin,300px)"></i><i class="slot k" data-m="k" style="right:22vw;bottom:9vh;width:clamp(90px,19vmin,240px)"></i></div></div>
+
+<section class="pad" id="crew">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#fff"/></svg>
+  <h2>Meet the crew.</h2>
+  <p class="lead">Two guides, one language. Kun looks after the web. Morty looks after your computer.</p>
+  <span class="hint">Poke them. They have opinions.</span>
+  <div class="two">
+    <div class="cc st dr rv" style="--rot:-2deg"><div class="pic"><i class="slot k" data-m="k"></i></div><h3>Kun</h3><span class="role">THE CLOUD · WEB</span><p>Light, curious and always online. Kun floats over the web side of KODAS: the site, the docs, and wherever your code meets a browser.</p></div>
+    <div class="cc st dr rv" style="--rot:2deg;transition-delay:.12s"><div class="pic"><i class="slot" data-m="m"></i></div><h3>Morty</h3><span class="role">THE DOG · COMPUTER</span><p>Loyal and hands-on. Morty lives on your machine: the compiler, <span class="m">kodas run</span>, and standalone native binaries. He fetches. He is a little slow on the first lap.</p></div>
+  </div>
+</section>
+
+<section class="pad nv" id="code">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#2352b5"/></svg>
+  <div class="code">
+    <div>
+      <h2>Real code.<br>Plain words.</h2>
+      <p class="lead">Traits, structs, closures and dynamic dispatch, with types you can leave out. <span class="m">give</span> is <span class="m">return</span>. <span class="m">show</span> prints.</p>
+      <div class="tabs" id="tabs"></div>
+      <p id="cap"></p>
+    </div>
+    <div class="ww">
+      <i class="slot" data-m="m" style="right:8%;top:calc(clamp(110px,19vmin,220px)*-.82);width:clamp(110px,19vmin,220px)"></i>
+      <div class="card st"><div class="bar"><i></i><i></i><i></i><span class="m" id="fn">&nbsp;greet.kds</span><button id="cc">Copy</button></div><pre class="m" id="cd"></pre></div>
+    </div>
+  </div>
+</section>
+
+<section class="pad wh" id="speed">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#14307a"/></svg>
+  <i class="slot k" data-m="k" style="right:8vw;top:calc(clamp(110px,18vh,190px) + 4vh);width:clamp(100px,18vmin,230px)"></i>
+  <h2>Honest numbers.</h2>
+  <p class="lead">Recursive <span class="m">fib(35)</span>: 9.2 million function calls, the classic “how expensive are calls?” test. Single run, real time. KODAS was the slowest in v0.16; in v0.17 it beats Python.</p>
+  <div class="bench st rv" id="bench">
+    <div class="row"><div>C <small>-O2</small></div><div class="bar2"><i style="--w:6%"></i></div><div class="v">0.01 s · 1×</div></div>
+    <div class="row"><div>Node.js <small>v20</small></div><div class="bar2"><i style="--w:22%;--d:.15s"></i></div><div class="v">0.07 s · 6×</div></div>
+    <div class="row me"><div>KODAS <small>v0.17</small></div><div class="bar2"><i style="--w:52%;--d:.3s"></i></div><div class="v">0.76 s · ~58×</div></div>
+    <div class="row"><div>Python <small>3</small></div><div class="bar2"><i style="--w:54%;--d:.35s"></i></div><div class="v">0.81 s · 62×</div></div>
+    <p class="note">Bars are on a log scale, so C stays visible. Times are relative to C.</p>
+  </div>
+</section>
+
+<section class="pad" id="download">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#14307a"/></svg>
+  <h2>Get KODAS.</h2>
+  <p class="lead">v0.17 · zero install wizards · compiles to C · builds standalone native binaries.</p>
+  <div class="dl">
+    <div class="dc st dr rv" data-os="linux" style="--rot:-2deg">
+      <span class="pl">LINUX · x86_64</span>
+      <div class="os"><span class="ico">🐧</span>Linux</div>
+      <div class="arch">Any recent distro. GCC or Clang required (<code style="font-family:'IBM Plex Mono',monospace;background:var(--tint);padding:1px 7px;border-radius:6px">apt install gcc</code>).</div>
+      <span class="sz">.zip · ~187 KB</span>
+      <div class="cmds">$ curl -fsSL https://kodas.xo.je/install | sh
+$ kodas run hello.kds</div>
+      <div><a class="db" href="/install">Run install script</a><a class="db alt" href="/kodas-linux-x86_64.zip" download>Download .zip</a></div>
+    </div>
+    <div class="dc st dr rv" data-os="windows" style="--rot:2deg;transition-delay:.1s">
+      <span class="pl">WINDOWS · x86_64</span>
+      <div class="os"><span class="ico">🪟</span>Windows</div>
+      <div class="arch">Windows 10/11, 64-bit. Needs MinGW GCC (installer opens the setup guide).</div>
+      <span class="sz">.zip · ~203 KB</span>
+      <div class="cmds"># Download the zip, extract it,
+# then double-click install.bat
+C:\> kodas run hello.kds</div>
+      <div><a class="db" href="/kodas-windows-x86_64.zip" download>Download .zip</a><a class="db alt" href="/install.bat" download>install.bat</a></div>
+    </div>
+    <div class="dc st dr rv coming" data-os="macos" style="--rot:-2.5deg;transition-delay:.2s">
+      <span class="pl">macOS · Intel & Apple Silicon</span>
+      <div class="os"><span class="ico">🍎</span>macOS</div>
+      <div class="arch">Coming in v0.17. You can still try KODAS today — run the Linux zip inside a Linux VM or Docker, or build from source on your Mac with Clang.</div>
+      <span class="sz">coming soon</span>
+      <div class="cmds"># brew install gcc
+# curl -fsSL https://kodas.xo.je/install | sh
+$ kodas run hello.kds</div>
+      <div><a class="db" href="#road" style="opacity:.6;pointer-events:none;background:#8da4d8;box-shadow:0 5px 0 #5d78b3">Download — soon</a><a class="db alt" href="#road">See the roadmap</a></div>
+    </div>
+  </div>
+  <p class="dlinfo">Once installed, <code>kodas run file.kds</code> compiles your program to C and runs it. <code>kodas build file.kds</code> produces a standalone native binary you can ship anywhere. No runtime, no GC pauses — KODAS uses deterministic reference counting.</p>
+</section>
+
+<section class="pad" id="docs">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#fff"/></svg>
+  <h2>Start in a minute.</h2>
+  <p class="lead">Four steps from nothing to a native binary.</p>
+  <div class="steps">
+    <div class="fc st dr rv" style="--rot:-3deg"><small>STEP 1</small><h3>Get it</h3><p>Run the install command above, or download the zip for your OS.</p><code>curl -fsSL https://kodas.xo.je/install | sh</code></div>
+    <div class="fc st dr rv" style="--rot:2.5deg;transition-delay:.1s"><small>STEP 2</small><h3>Write it</h3><p>Make a file ending in <span class="m">.kds</span>.</p><code>show "Hello, KODAS"</code></div>
+    <div class="fc st dr rv" style="--rot:-2deg;transition-delay:.2s"><small>STEP 3</small><h3>Run it</h3><p>KODAS compiles to C and runs it.</p><code>kodas run hello.kds</code></div>
+    <div class="fc st dr rv" style="--rot:3.5deg;transition-delay:.3s"><small>STEP 4</small><h3>Ship it</h3><p>Get a standalone native binary.</p><code>kodas build hello.kds</code></div>
+  </div>
+  <h4>The cheat sheet.</h4>
+  <div class="cs">
+    <div class="fc st dr rv" style="--rot:-2deg"><h3>let / let mut</h3><p>Immutable by default. Add <span class="m">mut</span> when a value needs to change.</p></div>
+    <div class="fc st dr rv" style="--rot:2deg;transition-delay:.08s"><h3>Optional types</h3><p>Type annotations are optional. KODAS is duck-typed at runtime.</p></div>
+    <div class="fc st dr rv" style="--rot:-3deg;transition-delay:.16s"><h3>struct · enum · trait</h3><p>Plus <span class="m">impl</span>, with default methods.</p></div>
+    <div class="fc st dr rv" style="--rot:3deg"><h3>fn and give</h3><p><span class="m">fn name(p: T = d) -> R { give x }</span> where <span class="m">give</span> means return.</p></div>
+    <div class="fc st dr rv" style="--rot:-2.5deg;transition-delay:.08s"><h3>dyn</h3><p><span class="m">dyn("Trait", v)</span> boxes a value with a vtable for dynamic dispatch.</p></div>
+    <div class="fc st dr rv" style="--rot:2deg;transition-delay:.16s"><h3>match · closures</h3><p><span class="m">match x { Pat =&gt; body, _ =&gt; fallback }</span> and <span class="m">fn(x) { x * 2 }</span>.</p></div>
+  </div>
+</section>
+
+<section class="pad" id="road" style="padding-top:clamp(110px,18vh,190px)">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#2352b5"/></svg>
+  <h2>Where it’s going.</h2>
+  <p class="lead">A young language, built in the open by one person. Here is the honest map.</p>
+  <div class="rm">
+    <div class="fc st dr rv" style="--rot:-2deg"><span class="tag">NOW · v0.17</span><h3>Working today</h3><ul><li>Compiles to C</li><li>Standalone native binaries</li><li>Structs, enums, traits</li><li>Closures and <span class="m">match</span></li><li>Dynamic dispatch with <span class="m">dyn</span></li></ul></div>
+    <div class="fc st dr rv" style="--rot:1.5deg;transition-delay:.12s"><span class="tag">NOW · v0.17</span><h3>Speed done</h3><ul><li>Fast arity-specialized calls</li><li>Faster than Python 3 on fib(35)</li><li>Small-int cache, open-addressing hash table</li></ul></div>
+    <div class="fc st dr rv" style="--rot:-1.5deg;transition-delay:.24s"><span class="tag">LATER</span><h3>Everywhere</h3><ul><li>A growing standard library</li><li>More examples and docs</li><li>Web and hardware targets, through C</li></ul></div>
+  </div>
+</section>
+
+<section class="pad wh" id="faq">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#14307a"/></svg>
+  <h2>Questions.</h2>
+  <div class="faq">
+    <details class="st" open><summary>What is KODAS?</summary><p>A programming language by independent developer Mudasir Ali. Source files end in <span class="m">.kds</span>, and the compiler turns them into C.</p></details>
+    <details class="st"><summary>How do I run a program?</summary><p><span class="m">kodas run file.kds</span> compiles to C and runs it. <span class="m">kodas build file.kds</span> produces a standalone native binary.</p></details>
+    <details class="st"><summary>Do I have to write types?</summary><p>No. Annotations are optional, and KODAS is duck-typed at runtime. Add them where they help you.</p></details>
+    <details class="st"><summary>How fast is it?</summary><p>At v0.17, recursive <span class="m">fib(35)</span> takes 0.76 seconds, against 0.81 for Python 3, 0.07 for Node.js and 0.01 for C. KODAS is now faster than Python on recursive calls.</p></details>
+    <details class="st"><summary>What does give mean?</summary><p>It is <span class="m">return</span>. <span class="m">fn name() { give value }</span> hands <span class="m">value</span> back to the caller.</p></details>
+    <details class="st"><summary>Who are Kun and Morty?</summary><p>The two mascots. Kun the cloud guides the web side of KODAS, and Morty the dog guides the computer side.</p></details>
+    <details class="st"><summary>Where do I get it?</summary><p>Scroll up to <a href="#download" style="text-decoration:underline">Get KODAS</a>, or grab it from the top of the page — Linux and Windows are available today, macOS is coming in v0.17.</p></details>
+  </div>
+</section>
+
+<section class="pad" id="dev">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#fff"/></svg>
+  <div>
+    <h2>Built by one.</h2>
+    <p class="lead" style="font-size:clamp(20px,2.4vw,30px);max-width:20em">No studio. No committee. One independent developer, one vision, and a language with no bounds.</p>
+    <div class="nm">Mudasir Ali</div>
+    <span class="rl">Creator and sole developer</span>
+  </div>
+  <div class="badge st dr" style="--rot:4deg"><svg viewBox="0 0 200 200" aria-hidden="true"><defs><path id="cp" d="M100,100 m-80,0 a80,80 0 1,1 160,0 a80,80 0 1,1 -160,0"/></defs><text font-family="Bagel Fat One,sans-serif" font-size="15" letter-spacing="1" fill="#2352b5"><textPath href="#cp" textLength="498" lengthAdjust="spacing">INDEPENDENT DEVELOPER • SOLO BUILT • MUDASIR ALI • KODAS • </textPath></text></svg>
+    <i class="slot" data-m="m" style="left:50%;top:54%;translate:-50% -50%;width:44%"></i><i class="slot k" data-m="k" style="right:-6%;top:-6%;width:30%"></i></div>
+</section>
+
+<section class="pad cta" id="get">
+  <svg class="wv" viewBox="0 0 1440 100" preserveAspectRatio="none"><path d="M0 0H1440V40C1200 110 1000 0 720 50C440 100 240 10 0 60Z" fill="#2352b5"/></svg>
+  <div class="pair"><i class="slot k" data-m="k"></i><i class="slot" data-m="m"></i></div>
+  <div class="huge">Begin.</div>
+  <p class="slg">Where <em>Logic</em> Knows No Bounds,<br>and <i>Creation</i> Knows No End.</p>
+  <div class="btns"><a class="bt" href="#download">Get KODAS — it’s free</a></div>
+  <div class="inst m"><code>kodas run hello.kds</code><button id="cp">Copy</button></div>
+  <footer><span>KODAS v0.17. Created and developed by Mudasir Ali, independent developer.</span><span>Compiles to C. Builds native binaries.</span></footer>
+</section>
+
+<script>
+(function(){
+var RM=matchMedia('(prefers-reduced-motion: reduce)').matches,$=function(s){return document.getElementById(s)},G='01{}<>/;=#$%';
+function cl(v,a,b){return Math.max(a,Math.min(b,v))}
+var px=innerWidth/2,py=innerHeight/2;addEventListener('pointermove',function(e){px=e.clientX;py=e.clientY});
+// drag stickers
+[].slice.call(document.querySelectorAll('.dr')).forEach(function(el){var sx,sy,ox,oy,rot0,on=false,lx=0;
+  el.addEventListener('pointerdown',function(e){if(e.target.closest('a,button,summary'))return;on=true;el.classList.add('on');el.setPointerCapture(e.pointerId);sx=e.clientX;sy=e.clientY;ox=parseFloat(el.style.getPropertyValue('--tx'))||0;oy=parseFloat(el.style.getPropertyValue('--ty'))||0;rot0=parseFloat(el.style.getPropertyValue('--rot'))||0;lx=e.clientX});
+  el.addEventListener('pointermove',function(e){if(!on)return;el.style.setProperty('--tx',ox+e.clientX-sx+'px');el.style.setProperty('--ty',oy+e.clientY-sy+'px');el.style.setProperty('--rot',cl(rot0+(e.clientX-lx)*.6,rot0-14,rot0+14)+'deg');lx=e.clientX});
+  function up(){if(!on)return;on=false;el.classList.remove('on');el.style.setProperty('--rot',rot0+'deg')}
+  el.addEventListener('pointerup',up);el.addEventListener('pointercancel',up)});
+// mascots
+var dp=$('dpc'),dc=dp.getContext('2d'),F=[];function rs(){dp.width=innerWidth;dp.height=innerHeight}rs();addEventListener('resize',rs);
+var SAY={m:['woof!','kodas run!','good dev!','fetch()','give 🐾'.replace(' 🐾',' bone')],k:['hello, web!','kun online','200 OK','floating…','ping!']};
+var Ms=['mm','mk'].map(function(id){var el=$(id),w=el.dataset.who,b=document.createElement('div');b.className='sb st';document.body.appendChild(b);
+  var o={el:el,w:w,r:w==='m'?1.083:1.008,sl:[].slice.call(document.querySelectorAll('.slot[data-m="'+w+'"]')),ey:[].slice.call(el.querySelectorAll('.ey')),ear:el.querySelector('.ear'),sb:b,M:null,vel:0,ly:scrollY,hap:0,sbT:0,ph:w==='m'?0:1500};
+  o.hs=o.sl.map(function(s){return s.closest('header,section,.stm')});
+  var inn=el.querySelector('.in');
+  inn.addEventListener('click',function(){inn.classList.remove('sq');void inn.offsetWidth;inn.classList.add('sq');say(o)});
+  el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();inn.click()}});return o});
+function R(el){var r=el.getBoundingClientRect();return{x:r.left+r.width/2,y:r.top+r.height/2,s:r.width}}
+function tg(o){var y=scrollY+innerHeight/2,cs=o.hs.map(function(h){return h.offsetTop+h.offsetHeight/2}),i=0;
+  while(i<cs.length-2&&y>cs[i+1])i++;
+  var u=cl((y-cs[i])/(cs[i+1]-cs[i]),0,1),e=cl((u-.3)/.4,0,1);e=e*e*(3-2*e);
+  var a=R(o.sl[i]),b=R(o.sl[i+1]);return{x:a.x+(b.x-a.x)*e,y:a.y+(b.y-a.y)*e,s:a.s+(b.s-a.s)*e}}
+function say(o){var t=performance.now(),L=SAY[o.w];o.sb.textContent=L[Math.random()*L.length|0];o.sb.classList.add('on');o.sbT=t+1800;o.hap=t+1200;
+  for(var i=0;i<22;i++){var a=Math.random()*6.283,sp=2+Math.random()*6;F.push({x:o.M.x,y:o.M.y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp-3,l:60+Math.random()*50,g:G[Math.random()*G.length|0]})}}
+function loop(t){
+  Ms.forEach(function(o){
+    var g=tg(o);if(!o.M)o.M={x:g.x,y:g.y,s:0};var M=o.M,k=RM?1:.12;
+    M.x+=(g.x-M.x)*k;M.y+=(g.y-M.y)*k;M.s+=(g.s-M.s)*k;
+    o.vel+=((scrollY-o.ly)-o.vel)*.15;o.ly=scrollY;
+    var s=M.s,h=s*o.r,q=Math.min(.25,Math.abs(o.vel)*.006),bob=RM?0:Math.sin((t+o.ph)/600)*s*.02;
+    o.el.style.width=s+'px';o.el.style.height=h+'px';
+    o.el.style.transform='translate('+(M.x-s/2)+'px,'+(M.y-h/2+bob)+'px) rotate('+cl(o.vel*.3,-12,12)+'deg) scale('+(1-q*.6)+','+(1+q)+')';
+    var dx=px-M.x,dy=py-M.y,d=Math.hypot(dx,dy)||1,m=Math.min(1,d/300)*4,p2=(t+o.ph)%4300,bl=p2<150?1-Math.sin(p2/150*Math.PI)*.9:1;
+    o.ey.forEach(function(e){e.style.transform='translate('+dx/d*m+'px,'+dy/d*m+'px) scale(1,'+bl+')'});
+    if(o.ear){o.ear.style.transformOrigin='160px 60px';o.ear.style.transform='rotate('+cl(-o.vel*1.2,-28,28)+'deg)'}
+    o.el.classList.toggle('hap',t<o.hap);
+    if(t>o.sbT)o.sb.classList.remove('on');else o.sb.style.transform='translate('+(M.x-o.sb.offsetWidth/2)+'px,'+(M.y-h/2-50)+'px) rotate(-4deg)'});
+  dc.clearRect(0,0,dp.width,dp.height);dc.font='400 18px "Bagel Fat One",sans-serif';dc.textAlign='center';
+  for(var i=F.length-1;i>=0;i--){var f=F[i];f.x+=f.vx;f.vx*=.97;f.y+=f.vy;f.vy+=.08;f.l--;if(f.l<=0){F.splice(i,1);continue}
+    dc.fillStyle='rgba(255,255,255,'+Math.min(1,f.l/40)+')';dc.strokeStyle='rgba(35,82,181,'+Math.min(1,f.l/40)+')';dc.lineWidth=4;dc.strokeText(f.g,f.x,f.y);dc.fillText(f.g,f.x,f.y)}
+  requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+// word reveal
+var st=$('st'),box=st.closest('.stm');
+st.innerHTML=st.dataset.t.split(' ').map(function(w){return '<span class="w">'+w+'</span>'}).join(' ');
+var ws=[].slice.call(st.querySelectorAll('.w'));
+function sc(){var r=box.getBoundingClientRect(),p=cl(-r.top/(r.height-innerHeight),0,1);
+  ws.forEach(function(w,i){w.style.opacity=RM?1:.16+.84*cl(p*ws.length*1.2-i,0,1)})}
+addEventListener('scroll',sc,{passive:true});sc();
+// reveal
+var rv=[].slice.call(document.querySelectorAll('.rv:not(.in)'));
+if('IntersectionObserver' in window){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.15});rv.forEach(function(e){io.observe(e)})}else rv.forEach(function(e){e.classList.add('in')});
+// code tabs
+var T=[
+ {n:'Traits & structs',f:'greet.kds',c:'// A trait declares behaviour. A struct holds data.\ntrait Greet { fn hello(self) -> String }\n\nstruct User { name: String }\nimpl Greet for User {\n  fn hello(self) -> String { give "Hi, " + self.name }\n}',t:'A trait describes what something can do. A struct holds data. impl connects them, and give hands a value back.'},
+ {n:'Dispatch & closures',f:'greet.kds',c:'let u = User { name: "Alice" }\nu.hello()                       // static dispatch\ndyn("Greet", u).hello()         // boxed vtable dispatch\n[1,2,3].map(fn(x) { x * 2 })    // closures + higher-order list',t:'Call a method directly, or box the value with dyn for dynamic dispatch. Closures work with lists out of the box.'},
+ {n:'Default params',f:'greet.kds',c:'fn greet(name: String = "World", g: Greet = User { name: name }) {\n  show g.hello()\n}',t:'Parameters can have defaults, and a default can even use an earlier parameter. show prints the result.'},
+ {n:'Run & build',f:'terminal',c:'$ kodas run hello.kds      # compile to C, then run\n$ kodas build hello.kds    # standalone native binary',t:'One command to try it, one command to ship it. KODAS compiles to C along the way.'}];
+function hl(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/(\/\/[^\n]*|#[^\n]*)|("[^"]*")|\b(trait|fn|struct|enum|impl|for|let|mut|give|show|dyn|match)\b|\b(\d+)\b/g,function(m,c,s2,k,n){return c?'<span class="c">'+c+'</span>':s2?'<span class="s2">'+s2+'</span>':k?'<span class="k">'+k+'</span>':'<span class="n">'+n+'</span>'})}
+var tabs=$('tabs'),cd=$('cd'),cap=$('cap'),cur=0;
+T.forEach(function(x,i){var b=document.createElement('button');b.className='tb'+(i?'':' on');b.textContent=x.n;b.onclick=function(){cur=i;[].slice.call(tabs.children).forEach(function(c,j){c.classList.toggle('on',j===i)});show()};tabs.appendChild(b)});
+function show(){var x=T[cur];cd.innerHTML=hl(x.c);cap.textContent=x.t;$('fn').innerHTML='&nbsp;'+x.f}show();
+function copy(b,txt,lab){try{navigator.clipboard.writeText(txt);b.textContent='Copied'}catch(e){b.textContent='Select and copy'}setTimeout(function(){b.textContent=lab},1600)}
+$('cc').onclick=function(){copy(this,T[cur].c,'Copy')};
+$('cp').onclick=function(){copy(this,'kodas run hello.kds','Copy')};
+// OS detection: highlight the matching download card
+(function(){var ua=navigator.userAgent||'',p=navigator.platform||'',os=null;
+  if(/Win/i.test(ua)||/Win/i.test(p))os='windows';
+  else if(/Mac/i.test(ua)||/Mac/i.test(p))os='macos';
+  else if(/Linux|X11/i.test(ua)||/Linux|X11/i.test(p))os='linux';
+  if(os){var card=document.querySelector('.dc[data-os="'+os+'"]');if(card){card.classList.add('cur');
+    // scroll the card into a nice first-impression on load
+    if(location.hash==='#download')setTimeout(function(){card.scrollIntoView({behavior:'smooth',block:'center'})},400)}}})();
+})();
+</script>
+</body>
+</html>

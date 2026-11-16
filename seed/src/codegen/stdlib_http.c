@@ -1,23 +1,47 @@
 // HTTP client + server; import is handled in main.c via source prepending.
 // Compiled into generated binary alongside krt.c.
-#include "codegen/krt.h"
+#include "krt.h"
+#include "../platform/kodas_platform.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <unistd.h>
 #include <errno.h>
-#include <string.h>
+#include <setjmp.h>
+#if KODAS_HAS_HTTP
+#include <unistd.h>
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <fcntl.h>
-#include <threads.h>
 #include <poll.h>
-#include <setjmp.h>
-#include <string.h>
+#endif
+#if KODAS_HAS_THREADS
+#include <threads.h>
+#endif
+#if defined(_WIN32) || !KODAS_HAS_HTTP
+// Stub the entire HTTP module on Windows for now; it returns "not supported" errors.
+static KVal* b_http_get_stub(int argc, KVal** argv){(void)argc;(void)argv;return k_err(k_str("http module not yet supported on this platform"));}
+static KVal* b_http_post_stub(int argc, KVal** argv){(void)argc;(void)argv;return k_err(k_str("http module not yet supported on this platform"));}
+static KVal* b_http_listen_stub(int argc, KVal** argv){(void)argc;(void)argv;return k_err(k_str("http module not yet supported on this platform"));}
+static KVal* b_http_response_stub(int argc, KVal** argv){(void)argc;(void)argv;return k_map_empty();}
+static KNative_* mk_native_stub(KNativeFn fn,const char*nm){KNative_*n=(KNative_*)k_alloc(sizeof(KNative_));n->fn=fn;n->name=nm;return n;}
+static KVal* mk_nv_stub(KNativeFn fn,const char*nm){KVal*v=k_new(K_NATIVE);v->as.native=mk_native_stub(fn,nm);return v;}
+void k_register_stdlib_http(void){
+    KVal* m = k_module("http");
+    k_mod_set(m,"get",mk_nv_stub(b_http_get_stub,"http.get"));
+    k_mod_set(m,"post",mk_nv_stub(b_http_post_stub,"http.post"));
+    k_mod_set(m,"listen",mk_nv_stub(b_http_listen_stub,"http.listen"));
+    k_mod_set(m,"response",mk_nv_stub(b_http_response_stub,"http.response"));
+    k_global_set("http",m);k_release(m);
+}
+#define HTTP_STUBBED 1
+#else
+#define HTTP_STUBBED 0
+#endif
+#if !HTTP_STUBBED
 
 // k_module/k_mod_set/k_str_len/k_index_set/k_alloc are not yet public in krt.h;
 // declare them extern here.
@@ -62,7 +86,7 @@ static int http_request(const char* method, const char* url, const char* body, c
     // Build request
     Buf req;buf_init(&req);
     buf_appends(&req,method);buf_append(&req," ",1);buf_appends(&req,path);buf_appends(&req," HTTP/1.0\r\nHost: ");buf_appends(&req,host);buf_appends(&req,"\r\n");
-    if(body){char cl[32];snprintf(cl,sizeof(cl),"Content-Length: %zu\r\n",strlen(body));buf_appends(&req,cl);}
+    if(body){char cl[48];snprintf(cl,sizeof(cl),"Content-Length: %zu\r\n",strlen(body));buf_appends(&req,cl);}
     buf_appends(&req,"Connection: close\r\n\r\n");
     if(body)buf_appends(&req,body);
     ssize_t wr=write(fd,req.buf,req.len);(void)wr;
@@ -113,168 +137,75 @@ static KVal* b_http_post(int argc,KVal**argv){
 
 // ── HTTP server: http.listen(port, fn(req) -> resp) ─────────────────
 static KVal* srv_handler = NULL;
-extern __thread KFrame* k_current_frame;
-
-static void hc_send(int client, const char* data, int len) {
-    int sent = 0;
-    while (sent < len) {
-        ssize_t n = write(client, data + sent, len - sent);
-        if (n <= 0) break;
-        sent += (int)n;
-    }
-}
-
 static void handle_conn(int client) {
+    extern __thread KFrame* k_current_frame;
     KFrame fr; memset(&fr,0,sizeof(fr));
-    KFrame* saved_frame = k_current_frame;
-    fr.prev = saved_frame; k_current_frame = &fr;
-
-    // Helper to do cleanup and return on any path
-    #define HC_DONE() do { k_current_frame = saved_frame; } while(0)
-
+    fr.prev = k_current_frame; k_current_frame = &fr;
     if (setjmp(fr.buf)) {
-        if (fr.error) {
-            fprintf(stderr,"[http] handler err\n");
-            k_release(fr.error); fr.error=NULL;
-        }
-        const char* err500="HTTP/1.0 500 Internal Server Error\r\nContent-Length:0\r\nConnection:close\r\n\r\n";
-        hc_send(client, err500, (int)strlen(err500));
-        close(client);
-        HC_DONE();
-        return;
+        if (fr.error) { fprintf(stderr,"[http] handler err\n"); k_release(fr.error); fr.error=NULL; }
+        const char* err500="HTTP/1.0 500\r\nContent-Length:0\r\nConnection:close\r\n\r\n";
+        (void)!write(client,err500,strlen(err500));
+        close(client); k_current_frame=fr.prev; return;
     }
-
-    Buf rb; buf_init(&rb); char tmp[4096];
-    int total=0; KVal* resp = NULL;
+    Buf rb;buf_init(&rb);char tmp[4096];
+    // Read headers until \r\n\r\n, up to 64KB
+    int total=0;
     while(total<65536){
         ssize_t n=read(client,tmp,sizeof(tmp));
         if(n<=0)break;
-        buf_append(&rb,tmp,(int)n); total+=(int)n;
-        if(rb.buf && strstr(rb.buf,"\r\n\r\n"))break;
+        buf_append(&rb,tmp,(int)n);total+=(int)n;
+        if(strstr(rb.buf,"\r\n\r\n"))break;
     }
-    if(!rb.buf || !strstr(rb.buf,"\r\n\r\n")){
-        const char* bad="HTTP/1.0 400 Bad Request\r\nContent-Length:0\r\nConnection:close\r\n\r\n";
-        hc_send(client, bad, (int)strlen(bad));
-        close(client); free(rb.buf); HC_DONE();
-        return;
-    }
+    if(!rb.buf||!strstr(rb.buf,"\r\n\r\n")){close(client);free(rb.buf);return;}
     char* hdr_end = strstr(rb.buf,"\r\n\r\n");
-    *hdr_end=0; char*headers_start=rb.buf;
+    *hdr_end=0;char*headers_start=rb.buf;
     int body_off=(int)(hdr_end-rb.buf)+4;
     int body_read = total-body_off;
-    if (body_read < 0) body_read = 0;
-    char method[16]="GET", path[1024]="/";
+    // Parse method/path from first line
+    char method[16]="GET",path[1024]="/";
     sscanf(headers_start,"%15s %1023s",method,path);
-
+    // Build req map
     KVal* req = k_map_empty();
     k_index_set(req,k_str("method"),k_str(method));
     k_index_set(req,k_str("path"),k_str(path));
     k_index_set(req,k_str("body"),k_str_len(rb.buf+body_off,body_read));
     k_index_set(req,k_str("headers"),k_map_empty());
+    // Call handler
     KVal* args[1]={req};
-    resp = k_call(srv_handler,1,args);
+    KVal* resp = k_call(srv_handler,1,args);
     k_release(req);
-
-    // Recursively look through the return value for a K_MAP with a "status"
-    // field. Code-gen wraps block final-exprs in sets/tuples, so the response
-    // can be nested inside those containers.
-    KVal* resp_map = NULL;
-    KVal* stack[64]; int depth = 0;
-    if (resp) stack[depth++] = resp;
-    while (depth > 0 && !resp_map) {
-        KVal* v = stack[--depth];
-        if (!v) continue;
-        if (v->kind == K_MAP) {
-            KMap* cm = v->as.map;
-            for (int j=0; j<cm->cap; j++) {
-                for (KMapEntry* ee=cm->buckets[j]; ee; ee=ee->next) {
-                    if (ee->key->kind==K_STRING && strcmp(ee->key->as.string_v,"status")==0
-                        && ee->val && ee->val->kind==K_INT) {
-                        resp_map = v;
-                        goto found_rm;
-                    }
-                }
-            }
-        }
-        if (v->kind == K_SET || v->kind == K_MAP) {
-            KMap* m = v->as.map;
-            for (int i=0; i<m->cap && depth<63; i++) {
-                for (KMapEntry* e=m->buckets[i]; e; e=e->next) {
-                    if (e->key && depth<63) stack[depth++] = e->key;
-                    if (e->val && depth<63) stack[depth++] = e->val;
-                }
-            }
-        } else if (v->kind == K_TUPLE || v->kind == K_LIST) {
-            KList* l = (v->kind==K_TUPLE) ? v->as.tuple : v->as.list;
-            for (int i=l->count-1; i>=0 && depth<64; i--) {
-                if (l->items[i] && depth<64) stack[depth++] = l->items[i];
-            }
-        }
-    }
-found_rm:;
+    // Build response
     int status = 200;
     const char* rbody = ""; int rblen = 0;
     const char* ct = "text/plain; charset=utf-8";
-    if(resp_map && resp_map->kind==K_MAP){
-        KMap* m = resp_map->as.map;
-        KVal* status_v=NULL; KVal* body_v=NULL; KVal* ct_v=NULL;
+    if(resp && resp->kind==K_MAP){
+        KMap* m = resp->as.map;
+        KVal* body_v=NULL;
         for(int i=0;i<m->cap;i++){
             for(KMapEntry*e=m->buckets[i];e;e=e->next){
                 if(e->key->kind==K_STRING){
-                    if(strcmp(e->key->as.string_v,"status")==0)status_v=e->val;
+                    if(strcmp(e->key->as.string_v,"status")==0&&e->val->kind==K_INT)status=(int)e->val->as.int_v;
                     else if(strcmp(e->key->as.string_v,"body")==0)body_v=e->val;
-                    else if(strcmp(e->key->as.string_v,"content_type")==0)ct_v=e->val;
+                    else if(strcmp(e->key->as.string_v,"content_type")==0&&e->val->kind==K_STRING)ct=e->val->as.string_v;
                 }
             }
         }
-        if(status_v && status_v->kind==K_INT)status=(int)status_v->as.int_v;
-        if(ct_v && ct_v->kind==K_STRING)ct=ct_v->as.string_v;
-        if(body_v && body_v->kind==K_STRING){rbody=body_v->as.string_v;rblen=(int)strlen(rbody);}
-        else if(body_v){
-            // Non-string body: convert to string via k_to_str if possible.
-            extern KVal* k_to_str(KVal* v);
-            KVal* s = k_to_str(body_v);
-            if(s && s->kind==K_STRING){
-                // Allocate a copy that outlives the response map
-                char* copy=(char*)malloc(strlen(s->as.string_v)+1);
-                strcpy(copy, s->as.string_v);
-                rbody=copy; rblen=(int)strlen(copy);
-                k_release(s);
-            } else if(s){k_release(s);}
-        }
+        if(body_v&&body_v->kind==K_STRING){rbody=body_v->as.string_v;rblen=(int)strlen(rbody);}
     }
-    const char* reason = (status==200)?"OK":(status==404)?"Not Found":(status==500)?"Internal Server Error":(status==400)?"Bad Request":"OK";
-    char hdr[1024];
-    int hl = snprintf(hdr,sizeof(hdr),
-        "HTTP/1.0 %d %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n",
-        status, reason, ct, rblen);
-    if (hl < 0) hl = 0;
-    if (hl >= (int)sizeof(hdr)) hl = (int)sizeof(hdr)-1;
-    hc_send(client, hdr, hl);
-    if (rblen > 0) hc_send(client, rbody, rblen);
+    char out[8192];int ol=snprintf(out,sizeof(out),
+        "HTTP/1.0 %d OK\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: close\r\n\r\n",
+        status,ct,rblen);
     close(client);
-    if (resp) k_release(resp);
+    if(resp)k_release(resp);
     free(rb.buf);
-    HC_DONE();
-    #undef HC_DONE
 }
-static int server_conn_thread(void* arg) {
-    int c = (int)(intptr_t)arg;
-    handle_conn(c);
-    return 0;
-}
-static int server_accept_loop(void* arg) {
+static int server_accept_thread(void* arg) {
     int srv_fd=(int)(intptr_t)arg;
-    for(;;){
+    while(1){
         struct sockaddr_in ca;socklen_t cl=sizeof(ca);
         int c=accept(srv_fd,(struct sockaddr*)&ca,&cl);
-        if(c<0){
-            if(errno==EINTR) continue;
-            break;
-        }
-        thrd_t t;
-        thrd_create(&t, server_conn_thread, (void*)(intptr_t)c);
-        thrd_detach(t);
+        if(c<0)break;
+        handle_conn(c);
     }
     return 0;
 }
@@ -299,9 +230,7 @@ static KVal* b_http_listen(int argc,KVal**argv){
     struct sockaddr_in a={0};a.sin_family=AF_INET;a.sin_addr.s_addr=htonl(INADDR_ANY);a.sin_port=htons(port);
     if(bind(fd,(struct sockaddr*)&a,sizeof(a))<0){close(fd);k_throw(k_err(k_str("bind failed")));return k_null();}
     listen(fd,16);
-    // Run accept loop on current thread (blocks forever) so process stays alive.
-    server_accept_loop((void*)(intptr_t)fd);
-    close(fd);
+    thrd_t t;thrd_create(&t,server_accept_thread,(void*)(intptr_t)fd);thrd_detach(t);
     return k_ok(k_int(port));
 }
 
@@ -318,3 +247,5 @@ void k_register_stdlib_http(void) {
     k_mod_set(m,"response",mk_nv(b_http_response,"http.response"));
     k_global_set("http",m);k_release(m);
 }
+
+#endif // !HTTP_STUBBED
