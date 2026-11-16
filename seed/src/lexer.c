@@ -187,6 +187,8 @@ static TokenKind ident_type(Lexer* lex) {
             break;
         case 'p':
             if (strcmp(buf, "pub") == 0) return TOK_PUB;
+            if (strcmp(buf, "print") == 0) return TOK_PRINT;
+            if (strcmp(buf, "println") == 0) return TOK_PRINTLN;
             break;
         case 'r':
             if (strcmp(buf, "return") == 0) return TOK_RETURN;
@@ -534,7 +536,7 @@ static bool token_starts_stmt(TokenKind k) {
         case TOK_MINUS: case TOK_NOT: case TOK_TILDE: case TOK_AMP: case TOK_STAR:
         case TOK_IF: case TOK_LOOP: case TOK_WHILE: case TOK_FOR: case TOK_MATCH:
         case TOK_LET: case TOK_SEAL: case TOK_RETURN: case TOK_GIVE: case TOK_STOP: case TOK_SKIP:
-        case TOK_SHOW: case TOK_ASSERT: case TOK_FN: case TOK_STRUCT: case TOK_ENUM:
+        case TOK_SHOW: case TOK_PRINT: case TOK_PRINTLN: case TOK_ASSERT: case TOK_FN: case TOK_STRUCT: case TOK_ENUM:
         case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_SELF: case TOK_TRUE: case TOK_FALSE:
             return true;
         default: return false;
@@ -608,6 +610,8 @@ const char* token_kind_name(TokenKind kind) {
         case TOK_LET: return "let";
         case TOK_SEAL: return "seal";
         case TOK_SHOW: return "show";
+        case TOK_PRINT: return "print";
+        case TOK_PRINTLN: return "println";
         case TOK_FN: return "fn";
         case TOK_IF: return "if";
         case TOK_ELSE: return "else";

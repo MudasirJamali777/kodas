@@ -1,6 +1,10 @@
 /// environment.c - Kodas environment & native builtins
 #define _POSIX_C_SOURCE 200809L
 #include "environment.h"
+#include "platform/kodas_platform.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <string.h>
 #include <stdio.h>
 #include <time.h>
@@ -842,15 +846,26 @@ static Value builtin_clock(int argc, Value* args, void* ctx) {
 static Value builtin_sleep(int argc, Value* args, void* ctx) {
     (void)ctx; REQUIRE(1, "sleep(seconds)");
     double secs = AS_DBL(args[0]);
+#ifdef _WIN32
+    Sleep((DWORD)(secs * 1000.0));
+#else
     struct timespec ts;
     ts.tv_sec = (time_t)secs;
     ts.tv_nsec = (long)((secs - (double)ts.tv_sec) * 1e9);
     nanosleep(&ts, NULL);
+#endif
     return val_null();
 }
 
 double current_time_seconds_impl(void) {
+#ifdef _WIN32
+    static LARGE_INTEGER freq={0};
+    if(!freq.QuadPart) QueryPerformanceFrequency(&freq);
+    LARGE_INTEGER c; QueryPerformanceCounter(&c);
+    return (double)c.QuadPart/(double)freq.QuadPart;
+#else
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+#endif
 }

@@ -1,8 +1,15 @@
-# KODAS v0.17 · Where Logic Knows No Bounds
+# KODAS v0.18 · Where Logic Knows No Bounds
 
 KODAS is a programming language that compiles to C and produces standalone
 native binaries. Designed by Mudasir Ali, built solo, in public.
 
+- **C-speed parity on numeric code.** The new **fast-C monomorphizing backend**
+  infers types at compile time and emits plain unboxed C (`long long fib(long
+  long n)`) so you get **~0.015s fib(35)** — same as handwritten C.
+  Programs using dynamic features (closures, structs, collections, traits,
+  channels, `dyn`) automatically fall back to the full KRT runtime.
+- **Standard keywords work alongside KODAS originals**: `return` = `give`,
+  `print` (no newline), `println` = `show`.
 - **Compiles to C** — every program becomes a portable .c file that your system
   C compiler (gcc/clang/cl) optimizes into a native binary.
 - **Optional types.** Annotations help you; you don't serve them. Duck-typed at
@@ -57,18 +64,22 @@ Keywords: `let`, `let mut`, `fn`, `struct`, `enum`, `trait`, `impl`, `match`,
 
 `give` means return. `show` prints. `mut` makes a binding mutable.
 
-## Speed (v0.17, recursive `fib(35)`, single run, real time)
+## Speed (v0.18, recursive `fib(35)`, single run, real time)
 
-|           | C -O2 | Node.js | **KODAS** | Python 3 |
-|-----------|-------|---------|-----------|----------|
-| fib(35)   | 0.01s | 0.07s   | **0.76s** | 0.81s    |
+|           | C -O3 | Node.js | **KODAS fast-C** | KODAS KRT | Python 3 |
+|-----------|-------|---------|------------------|-----------|----------|
+| fib(35)   | 0.015s| 0.07s   | **0.015s**       | 0.76s     | 0.81s    |
 
-KODAS v0.17 is ~17× faster than v0.16 (12.8s → 0.76s) thanks to arity-
-specialized fast calls, an open-addressing global hash table, and a small-integer
-cache that eliminates malloc/free on the hot path. Binary size: ~220 KB, zero
-external dependencies, deterministic reference counting (no GC pauses).
+KODAS v0.18 introduces a **monomorphizing fast-C backend** that infers types at
+compile time and emits plain unboxed C — reaching parity with handwritten C on
+numeric code (fib(35) = 0.015s vs C 0.015s, a **50× speedup over v0.17**).
+Programs using dynamic features (closures, structs, traits, channels, `dyn`,
+collections) automatically fall back to the KRT runtime, so nothing stops
+working. Binary size: ~248 KB, zero external dependencies on Linux/macOS,
+deterministic ARC (no GC pauses).
 
-Tight integer loop 1..10M: **0.30s** (KODAS v0.17).
+`return` / `give`, `print` / `println` / `show` all work — use whichever reads
+best.
 
 ## Layout of this repository (for Visual Studio / GitHub)
 
@@ -125,6 +136,21 @@ invokes your system C compiler automatically for `kodas run` / `kodas build`.
 - Compiler itself builds with `-O3 -flto` and strips to 220 KB.
 - Recursive `fib(35)`: 12.8s → **0.76s** (faster than Python 3).
 - Tight loops 1..10M: 1.2s → **0.30s**.
+
+## v0.18 changelog (Sprint 18: C-speed parity)
+
+- **Monomorphizing fast-C backend** — a second code generator runs first and
+  type-infers simple programs into unboxed C (`long long`, `double`, `const
+  char*`). When it applies, you get C-speed binaries; when it doesn't, KODAS
+  transparently falls back to KRT. No flags, no opt-in — you just get speed.
+- **Standard keyword aliases**: `return` (alias for `give`), `print`
+  (no trailing newline), `println` (alias for `show`).
+- Recursive `fib(35)`: 0.76s → **0.015s** (**50× faster**, parity with gcc -O3).
+- Multi-arg `show`/`println`/`print` use native `printf` with type-correct
+  formats (`%lld`, `%g`, `%s`).
+- `clock()` uses `clock_gettime(CLOCK_MONOTONIC)` for precise benchmarks.
+- Windows cross-compile fixes (nanosleep/clock_gettime fallbacks via
+  `QueryPerformanceCounter` / `Sleep`).
 
 ## Mascots
 

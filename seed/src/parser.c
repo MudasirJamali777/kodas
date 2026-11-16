@@ -58,7 +58,7 @@ static void synchronize(Parser* p) {
         if (previous(p)->kind == TOK_SEMI || previous(p)->kind == TOK_NEWLINE) return;
         switch (peek_tok(p)->kind) {
             case TOK_FN: case TOK_LET: case TOK_SEAL: case TOK_STRUCT: case TOK_ENUM:
-            case TOK_IF: case TOK_LOOP: case TOK_WHILE: case TOK_FOR: case TOK_MATCH: case TOK_SHOW: case TOK_TEST:
+            case TOK_IF: case TOK_LOOP: case TOK_WHILE: case TOK_FOR: case TOK_MATCH: case TOK_SHOW: case TOK_PRINT: case TOK_PRINTLN: case TOK_TEST:
             case TOK_BENCH: case TOK_CONTRACT:
             case TOK_BEHAVE: case TOK_TRAIT: case TOK_IMPL: case TOK_IMPORT: case TOK_MODULE:
             case TOK_BRIDGE: case TOK_RETURN: case TOK_FLOW: case TOK_TOGETHER:
@@ -487,7 +487,7 @@ static Expr* parse_primary(Parser* p) {
                                           k0 == TOK_TRAIT || k0 == TOK_IMPL || k0 == TOK_IF ||
                                           k0 == TOK_LOOP || k0 == TOK_WHILE || k0 == TOK_FOR ||
                                           k0 == TOK_MATCH || k0 == TOK_RETURN || k0 == TOK_GIVE ||
-                                          k0 == TOK_SHOW || k0 == TOK_ASSERT || k0 == TOK_TEST ||
+                                          k0 == TOK_SHOW || k0 == TOK_PRINT || k0 == TOK_PRINTLN || k0 == TOK_ASSERT || k0 == TOK_TEST ||
                                           k0 == TOK_BENCH || k0 == TOK_IMPORT || k0 == TOK_MODULE);
                     if (!first_is_decl) {
                         // Heuristic: scan tokens at depth==0 looking for a structural marker.
@@ -510,7 +510,7 @@ static Expr* parse_primary(Parser* p) {
                                     k == TOK_LET || k == TOK_GIVE || k == TOK_RETURN ||
                                     k == TOK_SEMI || k == TOK_IF || k == TOK_WHILE ||
                                     k == TOK_FOR || k == TOK_LOOP || k == TOK_MATCH ||
-                                    k == TOK_SHOW) { saw_eq = true; break; }
+                                    k == TOK_SHOW || k == TOK_PRINT || k == TOK_PRINTLN) { saw_eq = true; break; }
                             }
                         }
                         (void)j;
@@ -1557,6 +1557,26 @@ static Stmt* parse_stmt(Parser* p) {
 
     switch (tk->kind) {
         case TOK_SHOW: advance_tok(p); return parse_show(p);
+        case TOK_PRINTLN: {
+            advance_tok(p);
+            Location loc = prev_loc(p);
+            Expr* val = parse_expr(p);
+            Stmt* s = stmt_new(STMT_EXPR, loc);
+            Expr* e = expr_new(EXPR_SHOW, loc); /* println == show */
+            e->as.expr = val;
+            s->as.expr = e;
+            return s;
+        }
+        case TOK_PRINT: {
+            advance_tok(p);
+            Location loc = prev_loc(p);
+            Expr* val = parse_expr(p);
+            Stmt* s = stmt_new(STMT_EXPR, loc);
+            Expr* e = expr_new(EXPR_PRINT, loc);
+            e->as.expr = val;
+            s->as.expr = e;
+            return s;
+        }
         case TOK_ASSERT: advance_tok(p); return parse_assert(p);
         case TOK_STOP: {
             advance_tok(p);

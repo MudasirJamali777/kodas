@@ -147,7 +147,7 @@ static void collect_free_expr(CG*g, Expr*e, const char**caps, int*n, int max, Pa
         case EXPR_IF:collect_free_expr(g,e->as.if_e.cond,caps,n,max,params);collect_free_expr(g,e->as.if_e.then_branch,caps,n,max,params);
             if(e->as.if_e.else_branch)collect_free_expr(g,e->as.if_e.else_branch,caps,n,max,params);return;
         case EXPR_BLOCK:for(int i=0;i<e->as.block.stmts.count;i++)collect_free_stmt(g,e->as.block.stmts.items[i],caps,n,max,params);return;
-        case EXPR_SHOW:case EXPR_ASSERT:case EXPR_GIVE:collect_free_expr(g,e->as.expr,caps,n,max,params);return;
+        case EXPR_SHOW:case EXPR_PRINT:case EXPR_ASSERT:case EXPR_GIVE:collect_free_expr(g,e->as.expr,caps,n,max,params);return;
         case EXPR_WHILE:collect_free_expr(g,e->as.loop_in.cond,caps,n,max,params);collect_free_expr(g,e->as.loop_in.body,caps,n,max,params);return;
         case EXPR_LOOP:collect_free_expr(g,e->as.loop_e.body,caps,n,max,params);return;
         case EXPR_LOOP_IN:collect_free_expr(g,e->as.loop_in.iter,caps,n,max,params);collect_free_expr(g,e->as.loop_in.body,caps,n,max,params);return;
@@ -288,6 +288,7 @@ static void cg_expr(CG*g,Expr*e,const char*T){
             if(e->as.if_e.else_branch)cg_expr(g,e->as.if_e.else_branch,T);else cg_p(g,"%s=k_null();",T);g->indent-=2;cg_p(g,"}");rel(g,cv);return;}
         case EXPR_BLOCK:{scope_push(g);for(int i=0;i<e->as.block.stmts.count;i++)cg_stmt(g,e->as.block.stmts.items[i]);cg_p(g,"%s=k_null();",T);scope_pop(g);return;}
         case EXPR_SHOW:{char*v=etmp(g,e->as.expr);cg_p(g,"k_print(%s);",v);rel(g,v);cg_p(g,"%s=k_null();",T);return;}
+        case EXPR_PRINT:{char*v=etmp(g,e->as.expr);cg_p(g,"k_print_partial(%s);",v);rel(g,v);cg_p(g,"%s=k_null();",T);return;}
         case EXPR_ASSERT:{char*v=etmp(g,e->as.expr);cg_p(g,"k_assert(%s,k_str(\"assertion failed\"));",v);rel(g,v);cg_p(g,"%s=k_bool(true);",T);return;}
         case EXPR_GIVE:{if(e->as.expr){char*v=etmp(g,e->as.expr);cg_p(g,"return %s;",v);}else cg_p(g,"return k_null();");cg_p(g,"%s=k_null();",T);return;}
         case EXPR_STOP:cg_p(g,"break;");cg_p(g,"%s=k_null();",T);return;

@@ -946,6 +946,7 @@ KVal* k_errf(const char* fmt, ...) {
 }
 
 void k_print(KVal* v) { k_show_into(v, stdout); fputc('\n', stdout); }
+void k_print_partial(KVal* v) { k_show_into(v, stdout); }
 void k_eprint(KVal* v){ k_show_into(v, stderr); fputc('\n', stderr); }
 
 KVal* k_concat(KVal* a, KVal* b) { return k_add_str(a, b); }

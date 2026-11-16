@@ -183,6 +183,7 @@ KVal* k_list_pop(KVal* list);
 int   k_len(KVal* v);
 KVal* k_show(KVal* v);         // return string representation
 void  k_print(KVal* v);        // print to stdout with newline
+void  k_print_partial(KVal* v);// print to stdout without trailing newline
 void  k_eprint(KVal* v);       // print to stderr with newline
 KVal* k_concat(KVal* a, KVal* b);
 KVal* k_to_str(KVal* v);
